@@ -28,9 +28,18 @@ it is not merely a new test of already-passing behavior.
 ## Automated suite
 
 ```sh
+/bin/bash Tests/Scripts/test-runner.sh
 Scripts/test.sh
 Scripts/build-app.sh
 ```
+
+The shell regression test runs the actual wrapper with a fake compiler and
+developer-directory lookup. It covers the empty optional-arguments path, the
+explicit framework path with spaces, and propagation of a failing Swift exit
+status. It uses `/bin/bash` deliberately: the system Bash 3.2 treats empty arrays
+as unbound under `set -u`, unlike newer Bash versions. The wrapper therefore
+builds optional arguments with positional parameters, retaining strict error
+handling without requiring a shell upgrade. Fixtures stay under `.build`.
 
 Swift Testing covers lifecycle and model boundaries, actual coordinated temporary
 files, and pure hover/geometry logic. Fixtures and coverage outputs live under
