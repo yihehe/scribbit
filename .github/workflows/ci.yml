@@ -1,0 +1,32 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          sw_vers
+          swift --version
+      - name: Validate scripts and metadata
+        run: |
+          bash -n Scripts/*.sh
+          plutil -lint Resources/Info.plist
+          git diff --check
+      - name: Unit and filesystem tests
+        run: Scripts/test.sh
+      - name: Build and verify signed app
+        run: Scripts/build-app.sh
