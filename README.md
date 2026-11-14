@@ -3,8 +3,8 @@
 A lightweight macOS notepad tucked into your notch. Hover to capture a thought,
 then get back to work. Plain-text files, Markdown preview, and no cloud required.
 
-**Status:** early, source-built macOS app, version 0.5.2. There is no notarized
-download or universal binary yet. Editing uses Apple's NSTextView with a small
+**Status:** Build from source (version 0.5.2). No notarized download or universal
+binary is available yet. Editing uses Apple's NSTextView with a small
 Shift-Tab command; there are no third-party runtime packages.
 
 A small native macOS menu-bar app for one file-backed note, expanding directly
