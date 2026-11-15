@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="390" viewBox="0 0 840 390">
+<rect width="840" height="390" rx="16" fill="#181b21"/>
+<g font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="16" fill="#e8edf7">
+<text x="30" y="35" font-size="20" font-weight="600">Closed-state indicator concepts</text>
+<text x="30" y="100">1. Pencil tab</text><text x="30" y="215">2. Quiet dot</text><text x="30" y="330">3. Underline</text>
+</g>
+<g fill="#353e50" stroke="#67758f"><rect x="250" y="65" width="550" height="80" rx="8"/><rect x="250" y="180" width="550" height="80" rx="8"/><rect x="250" y="295" width="550" height="80" rx="8"/></g>
+<g fill="#090b10"><path d="M455 65h140v22q0 15-15 15H470q-15 0-15-15z"/><path d="M455 180h140v22q0 15-15 15H470q-15 0-15-15z"/><path d="M455 295h140v22q0 15-15 15H470q-15 0-15-15z"/></g>
+<g stroke="#c1d4ff" stroke-width="2" fill="none"><rect x="610" y="74" width="22" height="22" rx="5"/><path d="m616 89 10-10 3 3-10 10-4 1z"/></g>
+<circle cx="525" cy="225" r="3" fill="#c1d4ff"/>
+<rect x="502" y="338" width="46" height="3" rx="1.5" fill="#c1d4ff"/>
+</svg>
