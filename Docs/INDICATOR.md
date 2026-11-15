@@ -1,15 +1,15 @@
 # Closed-state left notch wing
 
-The optional pencil is now part of **one continuous black notch silhouette**, not
-a separate floating icon. Enable it using **Show Pencil in Left Notch Wing** in
+The optional frog-and-pencil mark sits inside **one continuous black notch silhouette**, not
+a separate floating icon. Enable it using **Show Frog in Left Notch Wing** in
 the menu-bar menu. This preference is off by default.
 
 | Property | Behavior |
 | --- | --- |
-| Placement | 36-point left extension beside the camera; white pencil centered in the extension |
+| Placement | 36-point left extension beside the camera; white frog-and-pencil mark centered in the extension |
 | Outline | Same attached shoulders and rounded lower corners as the note surface |
 | Connection | Black contour spans the wing and cutout with no gap; the right edge stays aligned with the original closed notch |
-| Hit region | Hovering the pencil, wing, or camera trigger opens the note; transparent corners are excluded |
+| Hit region | Hovering the mark, wing, or camera trigger opens the note; transparent corners are excluded |
 | Click handling | Nonactivating, click-through status-level window; no menu-bar clicks are consumed |
 | Transition | Expands from the wing's left-shifted center into the centered editor; collapse ends at the same resting shape |
 | Unnotched display | Connected wing on the simulated top-center notch, at 24-point resting height |

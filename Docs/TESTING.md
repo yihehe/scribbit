@@ -54,6 +54,7 @@ semaphore-controlled busy state without timing-dependent sleeps.
 | Geometry / HoverGate | Physical notch, unnotched fallback, negative display origins, small screens, invalid insets, entry/exit/reentry, old-display dwell invalidation |
 | NoteModel | Main-actor observable state, successful/error save, editable buffer retention, reload, preview reset, no destructive double-open, off-main I/O, duplicate-action busy gating |
 | App metadata | Display/executable names, bundle identifier, accessory mode, minimum supported macOS |
+| Branding | App-icon ICNS decoding at required sizes; template flags, logical sizes, 1x/2x pixels, and nonempty transparency |
 
 Animation-specific checks and the rendered fixture GIF are documented in `NOTCH-UX.md`.
 

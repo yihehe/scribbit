@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img"><title>F · Curious Tilt</title><desc>Original Night Paper variation. A curious little head tilt. Raised eye, upward glance, energetic diagonal pencil. Editable layered vector geometry; no raster images.</desc><defs><filter id="f-paper-grain" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency=".48 .72" numOctaves="3" seed="29" stitchTiles="stitch" result="paperNoise"/>
+    <feDiffuseLighting in="paperNoise" surfaceScale="1.2" diffuseConstant=".9" lighting-color="#FFFFFF" result="paperRelief"><feDistantLight azimuth="225" elevation="55"/></feDiffuseLighting>
+    <feComponentTransfer in="paperRelief" result="paperTone"><feFuncR type="linear" slope=".30" intercept=".79"/><feFuncG type="linear" slope=".30" intercept=".79"/><feFuncB type="linear" slope=".30" intercept=".79"/></feComponentTransfer>
+    <feBlend in="SourceGraphic" in2="paperTone" mode="multiply" result="texturedArt"/>
+    <feComposite in="texturedArt" in2="SourceAlpha" operator="in"/>
+    </filter></defs><g id="f-textured-paper-artwork" filter="url(#f-paper-grain)"><defs>
+    <linearGradient id="f-forest" x1="0" y1="0" x2=".9" y2="1"><stop stop-color="#2D4736"/><stop offset="1" stop-color="#1C3529"/></linearGradient>
+    <clipPath id="f-crop"><rect x="16" y="16" width="480" height="480" rx="110"/></clipPath>
+    </defs><rect id="f-tile" x="16" y="16" width="480" height="480" rx="110" fill="url(#f-forest)"/>
+    <path d="M126 18H386C446 18 494 66 494 126" fill="none" stroke="#B6C29A" stroke-width="1.4" opacity=".22"/>
+    <g clip-path="url(#f-crop)"><g id="f-curious-frog" transform="rotate(-7 268 335)"><g id="f-body-layer">
+      <path d="M85 524C70 454 80 364 110 293C124 259 145 234 165 218C146 197 144 169 156 147C171 121 203 113 226 127C247 140 254 160 251 183C268 174 283 169 303 168C298 144 306 122 326 111C352 96 385 108 396 134C408 160 399 187 380 202C422 246 447 315 454 380C461 436 455 485 442 524Z" fill="#0B2018" opacity=".11" transform="translate(3 9)"/>
+      <path d="M85 524C70 454 80 364 110 293C124 259 145 234 165 218C146 197 144 169 156 147C171 121 203 113 226 127C247 140 254 160 251 183C268 174 283 169 303 168C298 144 306 122 326 111C352 96 385 108 396 134C408 160 399 187 380 202C422 246 447 315 454 380C461 436 455 485 442 524Z" fill="#0B2018" opacity=".24" transform="translate(1.5 4)"/>
+      <path id="f-body" d="M85 524C70 454 80 364 110 293C124 259 145 234 165 218C146 197 144 169 156 147C171 121 203 113 226 127C247 140 254 160 251 183C268 174 283 169 303 168C298 144 306 122 326 111C352 96 385 108 396 134C408 160 399 187 380 202C422 246 447 315 454 380C461 436 455 485 442 524Z" fill="#ADB98B" stroke="#F6F0CF" stroke-opacity=".47" stroke-width="1.0" stroke-linejoin="round"/>
+    </g><g id="f-belly-layer">
+      <path d="M161 526C152 477 161 426 187 395C214 365 253 351 287 362C331 377 358 430 363 484L362 526Z" fill="#0B2018" opacity=".11" transform="translate(3 9)"/>
+      <path d="M161 526C152 477 161 426 187 395C214 365 253 351 287 362C331 377 358 430 363 484L362 526Z" fill="#0B2018" opacity=".24" transform="translate(1.5 4)"/>
+      <path id="f-belly" d="M161 526C152 477 161 426 187 395C214 365 253 351 287 362C331 377 358 430 363 484L362 526Z" fill="#F1E3C3" stroke="#F6F0CF" stroke-opacity=".47" stroke-width="0.8" stroke-linejoin="round"/>
+    </g><g id="f-left-eye"><ellipse cx="204" cy="181" rx="37" ry="42" fill="#183120" opacity=".19"/>
+    <ellipse cx="203" cy="177" rx="37" ry="42" fill="#183120" opacity=".21"/>
+    <ellipse cx="202" cy="175" rx="37" ry="42" fill="#F5E8C9" stroke="#FFF9E8" stroke-width="1.3"/>
+    <circle cx="214" cy="170" r="15" fill="#263E2E"/>
+    <path d="M204.25 160.55Q214 153.2 223.75 160.55" fill="none" stroke="#102A20" stroke-width="1.2" opacity=".4"/>
+    </g><g id="f-raised-eye"><ellipse cx="352" cy="155" rx="36" ry="43" fill="#183120" opacity=".19"/>
+    <ellipse cx="351" cy="151" rx="36" ry="43" fill="#183120" opacity=".21"/>
+    <ellipse cx="350" cy="149" rx="36" ry="43" fill="#F5E8C9" stroke="#FFF9E8" stroke-width="1.3"/>
+    <circle cx="362" cy="147" r="15" fill="#263E2E"/>
+    <path d="M352.25 137.55Q362 130.2 371.75 137.55" fill="none" stroke="#102A20" stroke-width="1.2" opacity=".4"/>
+    </g><path id="f-smile-shadow" d="M209 282C240 297 287 286 308 264" fill="none" stroke="#E5DDBC" stroke-width="3" stroke-linecap="round" transform="translate(0 2)"/>
+<path id="f-smile" d="M209 282C240 297 287 286 308 264" fill="none" stroke="#4B6240" stroke-width="3.7" stroke-linecap="round"/>
+<ellipse cx="254" cy="251" rx="3.1" ry="4" fill="#587047"/><ellipse cx="278" cy="245" rx="3.1" ry="4" fill="#587047"/>
+<path d="M109 357C96 393 94 450 103 476" fill="none" stroke="#D9DBB3" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round"/>
+</g><g id="f-pencil" transform="translate(324 329) rotate(37) scale(1.03)">
+    <path d="M-31 174V-137L0-207 31-137V174Q31 187 18 187H-18Q-31 187-31 174Z" fill="#10251B" opacity=".13" transform="translate(4 10)"/>
+    <path d="M-31 174V-137L0-207 31-137V174Q31 187 18 187H-18Q-31 187-31 174Z" fill="#10251B" opacity=".24" transform="translate(2 4)"/>
+    <path id="f-wood" d="M-31-137 0-207 31-137 12-118-7-126Z" fill="#F1DCB4" stroke="#FFF3D7" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M0-207 31-137 12-118-2-148Z" fill="#E4C99B"/>
+    <path id="f-graphite" d="M-11-181 0-207 11-181 3-178-3-183Z" fill="#2A3B2E" stroke="#C2C6AB" stroke-width=".7" stroke-linejoin="round"/>
+    <path id="f-shaft" d="M-31-137-10-128 10-137 31-128V174Q31 187 18 187H-18Q-31 187-31 174Z" fill="#DDA339" stroke="#F6D286" stroke-width="1.1" stroke-linejoin="round"/>
+    <path id="f-left-facet" d="M-31-137-10-128V187H-18Q-31 187-31 174Z" fill="#E8B448"/>
+    <path id="f-right-facet" d="M10-137 31-128V174Q31 187 18 187H10Z" fill="#BF852D"/>
+    <path d="M-10-127V177M10-136V178" fill="none" stroke="#FFE2A0" stroke-width="1.1" opacity=".57"/>
+    </g><g transform="rotate(-7 268 335)"><g id="f-high-hand-layer">
+      <path d="M382 307C367 298 355 301 352 311C349 321 361 330 369 335C352 329 342 333 343 344C344 354 357 362 367 365C352 362 346 369 351 378C357 390 375 394 383 412C397 442 424 440 430 419C438 393 408 326 382 307Z" fill="#0B2018" opacity=".11" transform="translate(3 9)"/>
+      <path d="M382 307C367 298 355 301 352 311C349 321 361 330 369 335C352 329 342 333 343 344C344 354 357 362 367 365C352 362 346 369 351 378C357 390 375 394 383 412C397 442 424 440 430 419C438 393 408 326 382 307Z" fill="#0B2018" opacity=".24" transform="translate(1.5 4)"/>
+      <path id="f-high-hand" d="M382 307C367 298 355 301 352 311C349 321 361 330 369 335C352 329 342 333 343 344C344 354 357 362 367 365C352 362 346 369 351 378C357 390 375 394 383 412C397 442 424 440 430 419C438 393 408 326 382 307Z" fill="#BCC59A" stroke="#F6F0CF" stroke-opacity=".47" stroke-width="1.0" stroke-linejoin="round"/>
+    </g><g id="f-low-arm-layer">
+      <path d="M121 325C98 364 88 419 108 448C127 479 163 481 191 464C205 455 222 443 237 442C251 442 260 433 255 424C252 418 244 416 235 418C245 410 246 401 240 396C232 391 221 397 216 402C221 391 218 384 211 385C199 388 192 404 180 410C165 419 145 418 144 400C143 383 151 367 154 351Z" fill="#0B2018" opacity=".11" transform="translate(3 9)"/>
+      <path d="M121 325C98 364 88 419 108 448C127 479 163 481 191 464C205 455 222 443 237 442C251 442 260 433 255 424C252 418 244 416 235 418C245 410 246 401 240 396C232 391 221 397 216 402C221 391 218 384 211 385C199 388 192 404 180 410C165 419 145 418 144 400C143 383 151 367 154 351Z" fill="#0B2018" opacity=".24" transform="translate(1.5 4)"/>
+      <path id="f-low-arm" d="M121 325C98 364 88 419 108 448C127 479 163 481 191 464C205 455 222 443 237 442C251 442 260 433 255 424C252 418 244 416 235 418C245 410 246 401 240 396C232 391 221 397 216 402C221 391 218 384 211 385C199 388 192 404 180 410C165 419 145 418 144 400C143 383 151 367 154 351Z" fill="#AFBC8D" stroke="#F6F0CF" stroke-opacity=".47" stroke-width="1.0" stroke-linejoin="round"/>
+    </g></g></g></g></svg>

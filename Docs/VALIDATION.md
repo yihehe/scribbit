@@ -1,5 +1,57 @@
 # Validation record
 
+## Branding pre-commit review — November 15, 2026
+
+Reviewed the complete branding diff and exports. No blocking correctness or
+privacy findings remained. Added an ImageIO regression test that decodes the
+ICNS export and checks the required 16–1024-pixel representations.
+
+| Check | Result / ignored local evidence |
+| --- | --- |
+| Exact staged-source export, without reused caches/research | **77 tests in 9 suites passed**; `build/branding-review/tests.log` |
+| Fresh separate release build | Passed; `build/branding-review/build.log` |
+| Package integrity and signature | Icon, four glyph exports and MIT license match the sources; identity unchanged; strict signature passed; no Testing framework linked |
+| Isolated GUI gate | **GUI_SMOKE_PASS**, including packaged-resource lookup and menu template; `build/branding-review/gui.log` |
+| Shell runner regressions, script/plist syntax, whitespace | Passed |
+| Public index audit | 65 intended files, five intended binaries, 17 local Markdown links; no findings in the bounded path/credential screen; vector SVGs have no embedded images/scripts/external references |
+| Hosted CI and daily-use optical acceptance | Not established by this review |
+
+The selected SVGs exactly match the approved Curious Tilt and Chest Cross
+masters. Source/export consistency, Retina image sizing, template tint behavior,
+bundle lookup/signing and unchanged indicator preference were reviewed.
+This does not replace a legal/security audit or physical-notch acceptance.
+
+Review candidate: `build/branding-review/Scribbit.app`. The running app was not
+replaced, and no production note, preferences or login registration were changed.
+
+## Frog branding — November 14, 2026
+
+Integrated the selected Curious Tilt paper-style app icon and Chest Cross
+frog/pencil mark. The menu bar uses an 18-point template and the notch a 14-point
+template, each with explicit 1x/2x PNG representations. SVGs remain the editable
+source; exports are committed so normal builds need no new tools/dependencies.
+The existing indicator preference and geometry are unchanged.
+
+| Check | Result |
+| --- | --- |
+| Unit/filesystem/resource suite | **76 tests in 9 suites passed**; `build/frog-branding/tests.log` |
+| Separate signed candidate | Passed strict signature verification; `build/frog-branding/build.log` |
+| Packaged resource integrity | Icon and four glyph exports byte-identical to source exports; correct icon plist key |
+| Native GUI smoke | **GUI_SMOKE_PASS**, including menu template identity and packaged-bundle lookup; `build/frog-branding/gui.log` |
+| Visual review | Export preview and `build/frog-branding/smoke/left-wing.png` inspected; actual tiny notch mark visible |
+| Shell regression and syntax, plist, diff whitespace | Passed |
+| Actual daily-use menu contrast/physical-notch optical acceptance | Pending user review; running app not replaced |
+
+Candidate: `build/frog-branding/Scribbit.app`. No production note, preferences,
+login registration or running app were changed. No commit or push performed.
+
+During validation, the initial image-loader initializer failed compilation and
+was corrected to decode PNG Data. The first SwiftPM bundle placement at the app
+root failed strict signing; it now lives in Contents/Resources with explicit
+lookup and a GUI assertion preventing fallback to a local build cache. The final
+results above are after these corrections. macOS iconutil required approved host
+access for the SVG-export packaging step.
+
 ## CI shell compatibility — November 14, 2026
 
 The hosted runner failed before Swift started: expanding an empty optional-flag

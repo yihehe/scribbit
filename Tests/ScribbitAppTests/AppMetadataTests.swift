@@ -20,6 +20,7 @@ struct AppMetadataTests {
         #expect(info["CFBundleName"] as? String == "Scribbit")
         #expect(info["CFBundleDisplayName"] as? String == "Scribbit")
         #expect(info["CFBundleExecutable"] as? String == "Scribbit")
+        #expect(info["CFBundleIconFile"] as? String == "AppIcon")
     }
 
     @Test func appUsesScribbitIdentityAndAccessoryMode() throws {

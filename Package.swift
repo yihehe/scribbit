@@ -7,7 +7,8 @@ let package = Package(
     products: [.executable(name: "Scribbit", targets: ["Scribbit"])],
     targets: [
         .target(name: "ScribbitCore"),
-        .executableTarget(name: "Scribbit", dependencies: ["ScribbitCore"]),
+        .executableTarget(name: "Scribbit", dependencies: ["ScribbitCore"],
+                          resources: [.process("Resources")]),
         .testTarget(name: "ScribbitCoreTests", dependencies: ["ScribbitCore"]),
         .testTarget(name: "ScribbitAppTests", dependencies: ["Scribbit", "ScribbitCore"])
     ],
