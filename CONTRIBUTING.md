@@ -14,10 +14,11 @@ tests for observable behavior. Read [AGENTS.md](AGENTS.md) for design invariants
 Run from the repository root:
 
 ```sh
+/bin/bash Tests/Scripts/test-runner.sh
 Scripts/test.sh
 Scripts/build-app.sh
 Scripts/coverage.sh
-bash -n Scripts/*.sh
+for script in Scripts/*.sh Tests/Scripts/*.sh; do /bin/bash -n "$script"; done
 plutil -lint Resources/Info.plist
 git diff --check
 ```

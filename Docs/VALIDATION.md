@@ -1,5 +1,29 @@
 # Validation record
 
+## CI shell compatibility — November 14, 2026
+
+The hosted runner failed before Swift started: expanding an empty optional-flag
+array under `set -u` raised an unbound-variable error in macOS Bash 3.2. The local
+CLT installation supplied framework arguments, so the previously tested path
+did not exercise that empty expansion.
+
+`Scripts/test.sh` now builds optional flags with positional parameters and
+`"$@"`, preserving strict error handling and all compiler/linker arguments.
+No application source or SDK was changed. CI now runs shell regression tests
+before the Swift suite and syntax-checks each shell script individually.
+
+| Check | Result / local evidence |
+| --- | --- |
+| Regression against the original wrapper | Failed with the same unbound-variable error, as expected; `build/ci-fix/before.log` |
+| `/bin/bash Tests/Scripts/test-runner.sh` | Three checks passed: no framework flags, exact framework arguments with spaces, Swift failure-status propagation; `build/ci-fix/shell-tests.log` |
+| `Scripts/test.sh` with approved filesystem coordination | **75 tests in 8 suites passed**; `build/ci-fix/swift-tests.log` |
+| Separate signed release candidate | Passed; `build/ci-fix/build.log`, output `build/ci-fix/Scribbit.app` |
+| Per-file Bash syntax, workflow YAML, diff whitespace | Passed |
+| Hosted rerun | Not run yet; local results do not establish GitHub CI success |
+
+The running app, selected note, production preferences and login registration
+were not changed. GUI smoke was not rerun for this shell-only change.
+
 ## Public-source preparation — November 14, 2026
 
 Version: **0.5.2**, build **8**. Package/executable: Scribbit; core: ScribbitCore.

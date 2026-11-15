@@ -23,9 +23,13 @@ jobs:
           swift --version
       - name: Validate scripts and metadata
         run: |
-          bash -n Scripts/*.sh
+          for script in Scripts/*.sh Tests/Scripts/*.sh; do
+            /bin/bash -n "$script"
+          done
           plutil -lint Resources/Info.plist
           git diff --check
+      - name: Test shell runner compatibility
+        run: /bin/bash Tests/Scripts/test-runner.sh
       - name: Unit and filesystem tests
         run: Scripts/test.sh
       - name: Build and verify signed app
