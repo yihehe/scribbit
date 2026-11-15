@@ -84,12 +84,19 @@
 | Sources/Scribbit/ | Native editor, app shell, presenter and opt-in GUI harness |
 | Tests/ | Swift Testing unit and actual-filesystem regression suites |
 | Resources/Info.plist | App identity, version and accessory-app metadata |
+| Resources/Branding/ | Editable app-icon and frog-mark SVGs; see Docs/BRANDING.md |
+| Sources/Scribbit/Resources/ | Committed 1x/2x template exports loaded by BrandAssets |
 | Scripts/ | Build, test, coverage and opt-in GUI smoke commands |
 | Docs/ | Current design, testing, platform API references and validation |
 
 The package/executable is Scribbit; the core module is ScribbitCore. Bundle ID:
 `com.stephenhe.Scribbit`. Changes to this ID create a new preferences/login
 identity; do not silently change it or introduce migration code as a cleanup.
+
+Keep artwork sources and exports in sync. Normal builds must not require Node,
+Sharp or network access. BrandAssets loads the nested SwiftPM bundle explicitly
+from Contents/Resources in packaged apps; do not rely on a local build-cache
+fallback. Preserve strict signing and test the packaged resource lookup.
 
 The toolchain workaround copies public manifest interfaces and a matching dylib
 into ignored .build only for the known CLT private/public interface mismatch.

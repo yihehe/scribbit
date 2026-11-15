@@ -123,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.mainMenu = main
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "Scribbit")
+        statusItem.button?.image = BrandAssets.menuBar
         statusItem.button?.toolTip = "Scribbit — hover at the top center of a display"
         let menu = NSMenu()
         menu.addItem(item("Open Note", #selector(openAction)))
@@ -131,7 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menu.addItem(item("Create Note File…", #selector(createAction)))
         menu.addItem(.separator())
         menu.addItem(item("Launch at Login", #selector(toggleLogin)))
-        menu.addItem(item("Show Pencil in Left Notch Wing", #selector(toggleIndicator)))
+        menu.addItem(item("Show Frog in Left Notch Wing", #selector(toggleIndicator)))
         let speed = NSMenuItem(title: "Animation Speed", action: nil, keyEquivalent: "")
         let rates = NSMenu(title: "Animation Speed")
         for (index, rate) in (2...8).map({ Double($0) / 4 }).enumerated() {
@@ -540,6 +540,14 @@ extension AppDelegate {
         }
         func check(_ value: Bool, _ message: String) throws {
             if !value { throw NSError(domain: "ShellSmoke", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
+        }
+        try check(statusItem.button?.image === BrandAssets.menuBar,
+                  "Menu bar did not use the bundled frog template")
+        try check(BrandAssets.notch.isTemplate && BrandAssets.notch.representations.count == 2,
+                  "Notch template is missing its scale representations")
+        if Bundle.main.bundleURL.pathExtension == "app" {
+            try check(BrandAssets.resourceBundle.bundleURL.path.hasPrefix(Bundle.main.bundleURL.path + "/Contents/Resources/"),
+                      "Brand assets were loaded from build cache instead of the app")
         }
         await openFile(file)
         try check(panel.isVisible && model.isOpen, "Shell open failed")

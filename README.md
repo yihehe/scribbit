@@ -55,7 +55,7 @@ target, not the symlink itself. Create does not truncate an existing file.
 | Animation Speed menu / bottom slider | Persisted 0.5×–2× playback rate in 0.25× steps; 1× keeps the reference motion profile |
 | Eye / pencil button | Read-only inline Markdown preview / plain source editing |
 | Launch at Login | Enables/disables macOS Service Management registration |
-| Show Pencil in Left Notch Wing | Optional pencil inside a black extension connected to the camera; off by default |
+| Show Frog in Left Notch Wing | Optional frog-and-pencil mark inside a black extension connected to the camera; off by default |
 
 A hover-opened note collapses 180 ms after the pointer leaves; moving back cancels
 that dismissal. Click the pin button to keep it open while writing. A menu-opened
@@ -150,6 +150,7 @@ migrated, deleted or rewritten. Quit any other build before opening this one.
 
 ## Project guide
 
+- [Frog branding and editable SVG sources](Docs/BRANDING.md)
 - [Native editor and Shift-Tab design](Docs/NATIVE-EDITOR.md)
 - [Notch UX, matching profile, and animation limitations](Docs/NOTCH-UX.md)
 - [Architecture and invariants](Docs/ARCHITECTURE.md)

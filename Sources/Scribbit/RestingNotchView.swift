@@ -18,8 +18,8 @@ final class RestingNotchView: NSView {
         mask.path = contour
         layer?.mask = mask
         let icon = NSImageView(frame: geometry.indicatorIcon.offsetBy(dx: -geometry.indicator.minX, dy: -geometry.indicator.minY))
-        icon.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: "Hover to open Scribbit")?
-            .withSymbolConfiguration(.init(pointSize: 12, weight: .medium))
+        icon.image = BrandAssets.notch
+        icon.setAccessibilityLabel("Hover to open Scribbit")
         icon.contentTintColor = NSColor.white.withAlphaComponent(0.85)
         addSubview(icon)
     }

@@ -13,6 +13,9 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Scribbit "$APP/Contents/MacOS/Scribbit"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp LICENSE "$APP/Contents/Resources/LICENSE"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# BrandAssets loads this signed location; SwiftPM's root lookup is for CLI/tests.
+cp -R .build/release/Scribbit_Scribbit.bundle "$APP/Contents/Resources/"
 # Ad-hoc signing works locally. Use a stable Developer ID identity for distribution.
 codesign --force --sign "${SIGNING_IDENTITY:--}" "$APP"
 codesign --verify --strict "$APP"
