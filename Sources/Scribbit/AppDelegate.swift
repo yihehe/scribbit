@@ -345,6 +345,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             await revealPanel(on: screen, fromHover: fromHover)
             return
         }
+        // Observation outlives panel visibility. Replace the previous scope only
+        // after successfully opening the new selection; quit balances the last.
+        accessedURL?.stopAccessingSecurityScopedResource()
         accessedURL = scoped ? selected : nil
         do { try remember(selected) }
         catch { model.error = "The file opened, but its location could not be remembered: \(error.localizedDescription)" }
@@ -358,7 +361,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 || (indicatorEnabled && current.indicatorContains(self.pointerLocation))
             if !stillInside {
                 _ = await model.close()
-                accessedURL?.stopAccessingSecurityScopedResource(); accessedURL = nil
                 return
             }
         }
@@ -430,7 +432,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         await presenter.dismiss()
         model.clearClosedPresentation()
-        accessedURL?.stopAccessingSecurityScopedResource(); accessedURL = nil
         dwell?.cancel(); dwell = nil
         hover.suppressUntilExit()
         if target(at: self.pointerLocation) == nil { _ = hover.move(to: nil) }
@@ -514,6 +515,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let saved = await model.saveUntitled(to: selected.resolvingSymlinksInPath())
         presentingDialog = false
         if saved {
+            accessedURL?.stopAccessingSecurityScopedResource()
             accessedURL = scoped ? selected : nil
             do { try remember(selected) }
             catch { model.error = "Saved, but the location could not be remembered: \(error.localizedDescription)" }

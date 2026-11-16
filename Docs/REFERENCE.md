@@ -49,3 +49,10 @@ The current package has no third-party runtime dependencies or bundled reference
 checkouts. Review licenses and retain required notices before importing any
 third-party implementation or assets. This API catalog is not legal clearance
 for source reuse and does not assert clean-room development.
+
+### File observation
+
+- [Apple Dispatch Sources](https://developer.apple.com/library/archive/documentation/General/Conceptual/ConcurrencyProgrammingGuide/GCDWorkQueues/GCDWorkQueues.html): file-system sources, asynchronous/coalesced delivery and cancellation-handler descriptor ownership.
+- [Apple File System Events guide](https://developer.apple.com/library/archive/documentation/Darwin/Conceptual/FSEvents_ProgGuide/UsingtheFSEventsFramework/UsingtheFSEventsFramework.html): advisory nature of change notification. FSEvents is not a runtime dependency.
+
+The implementation uses public native DispatchSource APIs, not third-party watcher code.

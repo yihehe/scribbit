@@ -5,7 +5,7 @@ public enum NoteError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .invalidUTF8: return "This file is not UTF-8 text. Choose a UTF-8 .txt or .md file."
-        case .tooLarge: return "This note exceeds the 2 MiB limit. Choose a smaller file."
+        case .tooLarge: return "This note exceeds the 64 MiB limit. Choose a smaller file."
         case .conflict: return "The file changed or was removed on disk. Your edits are still here. Save a copy, or reload to discard your edits."
         case .notOpen: return "No note is open."
         case .unsupportedFile: return "Choose a regular text file, not a directory or special file."
@@ -14,14 +14,20 @@ public enum NoteError: LocalizedError, Equatable {
 }
 
 public protocol NoteStore {
+    func invalidateCache()
     func read(_ url: URL) throws -> Data
     func save(_ data: Data, to url: URL, replacing baseline: Data) throws
+}
+
+public extension NoteStore {
+    /// Explicit reload must bypass any optional read cache.
+    func invalidateCache() {}
 }
 
 /// Coordinates with participating macOS editors and checks bytes before atomic replacement.
 /// Non-cooperating writers can still race; this is not a distributed file lock.
 public final class DiskNoteStore: NoteStore {
-    public static let maximumBytes = 2 * 1024 * 1024
+    public static let maximumBytes = 64 * 1024 * 1024
     public init() {}
 
     /// An empty new file needs no atomic replacement. Foundation explicitly

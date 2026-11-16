@@ -201,7 +201,7 @@ These are not claimed as passed by unit tests or screenshots.
 
 Use a **release** bundle, a small local file, and Activity Monitor or Instruments.
 Observe hidden idle for at least 60 seconds, ordinary pointer movement away from
-the notch, repeated open/close, preview, and the 2 MiB boundary file. Record Mac
+the notch, repeated open/close, preview, and the 64 MiB boundary file. Record Mac
 model/CPU, OS, build, idle CPU, resident memory, energy impact, and any growth over
 100 open/close cycles. Distinguish warm SwiftUI baseline from leaks. No recurring
 timer or idle I/O is expected, but numerical CPU/RAM budgets require actual
@@ -242,3 +242,19 @@ Tests never reset standard defaults or register/unregister a real login item.
 These flows are not simulated by the unit suite. Native sheet ordering, default
 button cancellation, login removal and actual first-launch behavior require
 explicitly approved manual validation with disposable preferences/notes.
+
+## Watched selected-note cache
+
+WatchedNoteStoreTests covers unchanged reopen reuse, clearing the session text,
+explicit reload bypass, same-length edits, atomic replacement, deletion/recreation,
+file switching, explicit invalidation and save conflicts despite a populated cache.
+The reset regression clears a hidden snapshot without reading, writing or deleting
+the note, then verifies an unchanged reopen must read again after reset.
+The actual directory-event regression creates a sibling file without changing the
+note metadata and waits up to three seconds for invalidation; it does not assert
+an exact delivery deadline or use a production polling timer. Existing
+DiskNoteStore boundary and oversized-save regressions exercise the 64 MiB limit.
+
+64 MiB is a supported source acceptance bound, not a UI performance benchmark.
+Manual editor/undo/preview latency and whole-app RSS at that size remain unverified;
+use disposable data only and do not infer interactive smoothness from store tests.

@@ -56,6 +56,13 @@ final class DiskNoteStoreTests {
         try (boundary + Data([0x61])).write(to: url)
         expectThrowsError(try store.read(url)) { expectEqual($0 as? NoteError, .tooLarge) }
     }
+    @Test func testSaveAt64MiBBoundary() throws {
+        expectEqual(DiskNoteStore.maximumBytes, 64 * 1024 * 1024)
+        try Data().write(to: url)
+        let boundary = Data(repeating: 0x61, count: DiskNoteStore.maximumBytes)
+        try store.save(boundary, to: url, replacing: Data())
+        expectEqual(try store.read(url), boundary)
+    }
     @Test func testOversizedSaveDoesNotTouchOriginal() throws {
         try Data("before".utf8).write(to: url)
         expectThrowsError(try store.save(Data(repeating: 0x61, count: DiskNoteStore.maximumBytes + 1),

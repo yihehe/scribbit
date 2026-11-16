@@ -3,7 +3,8 @@ import Combine
 import CryptoKit
 import ScribbitCore
 
-// Keep only 32 bytes across close, not the hidden note's source. Hashing occurs
+// Viewport identity keeps only 32 bytes across close, independently of the
+// store's bounded hidden snapshot cache. Hashing occurs
 // on the existing file worker, never during scrolling or selection movement.
 private func sourceFingerprint(_ source: String) -> Data {
     Data(SHA256.hash(data: Data(source.utf8)))
@@ -49,7 +50,7 @@ final class NoteModel: ObservableObject {
     private(set) var url: URL?
     private var baselineText = ""
     private let worker: SessionWorker
-    init(session: NoteSession = NoteSession()) { worker = SessionWorker(session: session) }
+    init(session: NoteSession = NoteSession(store: WatchedNoteStore())) { worker = SessionWorker(session: session) }
     var isDirty: Bool { isUntitled ? !text.isEmpty : isOpen && text != baselineText }
 
     /// Untitled text stays RAM-only across hover dismissal; no file worker session exists.

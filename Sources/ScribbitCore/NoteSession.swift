@@ -25,6 +25,7 @@ public final class NoteSession {
     /// Explicit discard action; reads first so a failed reload preserves edits.
     public func reloadDiscardingEdits() throws {
         guard let url, isOpen else { throw NoteError.notOpen }
+        store.invalidateCache()
         let bytes = try store.read(url)
         guard let decoded = String(data: bytes, encoding: .utf8) else { throw NoteError.invalidUTF8 }
         baseline = bytes
@@ -49,6 +50,7 @@ public final class NoteSession {
     }
     /// Explicitly confirmed app reset only. No reads, writes or file deletion.
     public func resetDiscardingEdits() {
+        store.invalidateCache()
         url = nil
         isOpen = false
         text = ""
