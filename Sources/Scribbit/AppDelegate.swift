@@ -320,6 +320,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             focusEditor(in: panel.contentView)
             return
         }
+        if model.isUntitled, model.isDirty {
+            await revealPanel(on: screen, fromHover: fromHover)
+            return
+        }
         do {
             guard let url = try resolveFile() else {
                 await revealPanel(on: screen, fromHover: fromHover)
@@ -358,7 +362,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 return
             }
         }
-        if !model.isOpen { model.showWelcomeIfClosed() }
+        if !model.isOpen { model.openUntitled() }
         presenter.showsRestingWing = indicatorEnabled
         if let destination { presenter.configure(geometry(destination)) }
         indicators.forEach { $0.orderOut(nil) }
@@ -436,7 +440,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
 
     private func chooseFile() async {
         guard !presentingDialog, !model.isBusy, !closing, presenter?.isTransitioning != true else { return }
-        guard await closeNote() else { return }
+        guard await resolveUntitledBeforeReplacement(), await closeNote() else { return }
         presentingDialog = true
         NSApp.activate(ignoringOtherApps: true)
         let picker = NSOpenPanel()
@@ -449,6 +453,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     private func createFile() async {
         guard !presentingDialog, !model.isBusy, !closing, presenter?.isTransitioning != true else { return }
+        if model.isUntitled { _ = await saveUntitled(); return }
         guard await closeNote() else { return }
         presentingDialog = true
         NSApp.activate(ignoringOtherApps: true)
@@ -463,6 +468,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             return
         }
         await openFile(url)
+    }
+    /// Drafts survive ordinary dismissal. Only explicit replacement or quit asks
+    /// whether to save/discard; cancelling either dialog leaves the draft intact.
+    private func resolveUntitledBeforeReplacement() async -> Bool {
+        commitComposition(in: panel.contentView)
+        guard model.isUntitled, model.isDirty else { return true }
+        presentingDialog = true
+        settingsPopover.performClose(nil)
+        if !panel.isVisible { await revealPanel(fromHover: false) }
+        let alert = NSAlert()
+        alert.messageText = "Save your untitled note?"
+        alert.informativeText = "Unsaved changes will be lost if you discard this note."
+        alert.addButton(withTitle: "Save As…")
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Discard")
+        let response = await withCheckedContinuation { continuation in
+            alert.window.level = panel.level
+            alert.beginSheetModal(for: panel) { continuation.resume(returning: $0) }
+        }
+        presentingDialog = false
+        switch response {
+        case .alertFirstButtonReturn: return await saveUntitled()
+        case .alertThirdButtonReturn: model.discardUntitled(); return true
+        default: return false
+        }
+    }
+    private func saveUntitled() async -> Bool {
+        guard model.isUntitled, !presentingDialog, !model.isBusy, !closing else { return false }
+        commitComposition(in: panel.contentView)
+        presentingDialog = true
+        settingsPopover.performClose(nil)
+        if !panel.isVisible { await revealPanel(fromHover: false) }
+        let picker = NSSavePanel()
+        picker.title = "Save untitled note to a new file"
+        picker.nameFieldStringValue = "Notes.md"
+        let response = await withCheckedContinuation { continuation in
+            picker.beginSheetModal(for: panel) { continuation.resume(returning: $0) }
+        }
+        guard response == .OK, let selected = picker.url else {
+            presentingDialog = false
+            return false
+        }
+        let scoped = selected.startAccessingSecurityScopedResource()
+        let saved = await model.saveUntitled(to: selected.resolvingSymlinksInPath())
+        presentingDialog = false
+        if saved {
+            accessedURL = scoped ? selected : nil
+            do { try remember(selected) }
+            catch { model.error = "Saved, but the location could not be remembered: \(error.localizedDescription)" }
+            if !panel.isVisible { await revealPanel(fromHover: false) }
+        } else if scoped { selected.stopAccessingSecurityScopedResource() }
+        return saved
     }
     private func saveCopy() async {
         guard !presentingDialog, !model.isBusy, !closing, presenter?.isTransitioning != true else { return }
@@ -583,11 +640,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         Task { await createFile() }
     }
     @objc private func saveAction() {
+        guard !model.resetInProgress else { return }
         commitComposition(in: panel.contentView)
-        Task { await model.save() }
+        Task {
+            if model.isUntitled { _ = await saveUntitled() }
+            else { await model.save() }
+        }
     }
     private var editableResponder: NSTextView? {
-        guard !model.isBusy, let editor = panel?.firstResponder as? NSTextView,
+        guard !model.isBusy, !model.resetInProgress, let editor = panel?.firstResponder as? NSTextView,
               editor.isEditable else { return nil }
         return editor
     }
@@ -620,15 +681,111 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         alert.messageText = identity.name
         alert.informativeText = identity.versionText
         alert.addButton(withTitle: "Close")
+        alert.addButton(withTitle: "Reset App…")
         // A standalone app-modal alert can sit below the status-bar-level
         // notch panel. Use native sheet parenting/order at the panel's level.
         alert.window.level = panel.level
-        alert.beginSheetModal(for: panel) { [weak self] _ in
+        alert.beginSheetModal(for: panel) { [weak self] response in
             guard let self else { return }
+            if response == .alertSecondButtonReturn {
+                // Defer until AppKit has finished ending the About sheet.
+                Task { await self.resetApp() }
+                return
+            }
             self.presentingDialog = false
             if self.model.isOpen, self.panel.isKeyWindow { self.focusEditor(in: self.panel.contentView) }
             self.trackOpenPointer()
         }
+    }
+    /// Invoked only from About after an explicit user click. The isolated
+    /// harness cannot register/unregister login items or touch real defaults.
+    private func resetApp() async {
+        guard !model.isBusy, !closing else { presentingDialog = false; return }
+        presentingDialog = true
+        defer {
+            model.resetInProgress = false
+            presentingDialog = false
+            if model.isOpen, panel.isKeyWindow { focusEditor(in: panel.contentView) }
+            trackOpenPointer()
+        }
+        let confirmation = NSAlert()
+        confirmation.alertStyle = .warning
+        confirmation.messageText = "Reset Scribbit for first-time setup?"
+        confirmation.informativeText = "This forgets the selected file, resets Scribbit settings and cursor position, and turns off Launch at Login. Your note files are never deleted. Unsaved text must be saved or explicitly discarded. A blank untitled notepad will open immediately. Like a first launch, the next launch will attempt to enable Launch at Login again."
+        confirmation.addButton(withTitle: "Cancel")
+        confirmation.addButton(withTitle: "Continue…")
+        guard await resetSheet(confirmation) == .alertSecondButtonReturn else { return }
+        // Explicit setup intent keeps cancellation/save errors visible after sheets.
+        openedByHover = false
+        commitComposition(in: panel.contentView)
+        if model.isDirty {
+            let edits = NSAlert()
+            edits.messageText = "Save your note before resetting?"
+            edits.informativeText = "Discard removes only the unsaved text from Scribbit. The existing note file will not be changed."
+            edits.addButton(withTitle: model.isUntitled ? "Save As…" : "Save")
+            edits.addButton(withTitle: "Cancel")
+            edits.addButton(withTitle: "Discard")
+            switch await resetSheet(edits) {
+            case .alertFirstButtonReturn:
+                if model.isUntitled {
+                    presentingDialog = false
+                    let saved = await saveUntitled()
+                    presentingDialog = true
+                    guard saved else { return }
+                } else {
+                    await model.save()
+                    guard !model.isDirty, model.error == nil else { return }
+                }
+            case .alertThirdButtonReturn: break // Defer actual discard until reset commits.
+            default: return
+            }
+        }
+        model.resetInProgress = true
+        panel.makeFirstResponder(nil)
+        if !isolated {
+            do {
+                if SMAppService.mainApp.status == .enabled || SMAppService.mainApp.status == .requiresApproval {
+                    try await SMAppService.mainApp.unregister()
+                }
+            } catch {
+                model.error = "Reset cancelled because Launch at Login could not be disabled: \(error.localizedDescription)"
+                return
+            }
+        }
+        guard await model.resetDiscardingEdits() else { return }
+        accessedURL?.stopAccessingSecurityScopedResource(); accessedURL = nil
+        settings.reset()
+        model.animationSpeed = settings.animationSpeed
+        presenter.animationSpeed = settings.animationSpeed
+        model.hoverDelay = settings.hoverDelay
+        dwell?.cancel(); dwell = nil
+        exitWork?.cancel(); exitWork = nil
+        hover = HoverGate()
+        openedByHover = false
+        pointerInsideSurface = true
+        refreshPopupState()
+        refreshIndicators()
+        // Let SwiftUI recreate the editor if reset was requested from preview.
+        await Task.yield()
+        panel.contentView?.layoutSubtreeIfNeeded()
+        clearEditorHistory(in: panel.contentView)
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+    }
+    private func resetSheet(_ alert: NSAlert) async -> NSApplication.ModalResponse {
+        alert.window.level = panel.level
+        return await withCheckedContinuation { continuation in
+            alert.beginSheetModal(for: panel) { continuation.resume(returning: $0) }
+        }
+    }
+    private func clearEditorHistory(in view: NSView?) {
+        guard let view else { return }
+        if let editor = view as? NoteTextView {
+            editor.breakUndoCoalescing()
+            editor.undoManager?.removeAllActions()
+            return
+        }
+        for child in view.subviews { clearEditorHistory(in: child) }
     }
     func window(_ window: NSWindow, willPositionSheet sheet: NSWindow, using rect: NSRect) -> NSRect {
         guard window === panel, let geometry = presenter.geometry else { return rect }
@@ -640,7 +797,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !presentingDialog, !model.isBusy else { return .terminateCancel }
-        Task { NSApp.reply(toApplicationShouldTerminate: await closeNote()) }
+        Task {
+            let proceed = await resolveUntitledBeforeReplacement()
+            NSApp.reply(toApplicationShouldTerminate: proceed ? await closeNote() : false)
+        }
         return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) {
@@ -679,16 +839,27 @@ extension AppDelegate {
                       "Brand assets were loaded from build cache instead of the app")
         }
         await openNote()
-        try check(panel.isVisible && !model.isOpen && model.showsWelcome,
-                  "No-file launch did not reveal a safe welcome surface")
+        try check(panel.isVisible && model.isOpen && model.isUntitled,
+                  "No-file launch did not reveal an editable untitled notepad")
         try check(controlButton("openSettings", in: panel.contentView) == nil &&
                   settingsAnchor()?.identifier?.rawValue == "toggleNoteInformation",
-                  "Collapsed welcome state did not expose the visible chevron fallback")
+                  "Collapsed untitled state did not expose the visible chevron fallback")
         settingsAction()
         try await waitForSmoke { self.settingsPopover.isShown && self.settingsPresented }
         try check(settingsPopover.contentViewController != nil,
-                  "Welcome surface settings popup was inaccessible")
+                  "Untitled notepad settings popup was inaccessible")
         settingsPopover.performClose(nil)
+        guard let draftEditor = panel.contentView.flatMap({ EditorProbe.find(in: $0) }) else {
+            throw CocoaError(.featureUnsupported)
+        }
+        try check(draftEditor.isEditable && panel.firstResponder === draftEditor.view,
+                  "Untitled editor did not receive native keyboard focus")
+        model.text = "Disposable RAM-only draft"
+        _ = await closeNote()
+        await openNote()
+        try check(model.isUntitled && model.text == "Disposable RAM-only draft",
+                  "Dismissing and reopening discarded the untitled draft")
+        model.discardUntitled()
         _ = await closeNote()
         await openFile(file)
         try check(panel.isVisible && model.isOpen, "Shell open failed")

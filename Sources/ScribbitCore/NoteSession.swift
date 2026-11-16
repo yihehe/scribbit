@@ -47,4 +47,12 @@ public final class NoteSession {
         text = ""
         baseline = Data()
     }
+    /// Explicitly confirmed app reset only. No reads, writes or file deletion.
+    public func resetDiscardingEdits() {
+        url = nil
+        isOpen = false
+        text = ""
+        baseline = Data()
+    }
+
 }

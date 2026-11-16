@@ -24,6 +24,19 @@ private final class MemoryStore: NoteStore {
 
 final class NoteSessionTests {
     private let url = URL(fileURLWithPath: "/example/note.md")
+    @Test func confirmedResetDiscardsOnlyMemoryWithoutDiskIO() throws {
+        let store = MemoryStore()
+        let session = NoteSession(store: store)
+        try session.open(url)
+        session.text = "unsaved text"
+        store.failRead = true
+        store.failWrite = true
+        session.resetDiscardingEdits()
+        #expect(!session.isOpen && !session.isDirty && session.url == nil && session.text.isEmpty)
+        #expect(store.reads == 1 && store.writes == 0 && store.bytes == Data("original".utf8))
+        session.resetDiscardingEdits()
+        #expect(store.reads == 1 && store.writes == 0)
+    }
     @Test func testEveryClosedToOpenTransitionReadsDisk() throws {
         let store = MemoryStore()
         let subject = NoteSession(store: store)

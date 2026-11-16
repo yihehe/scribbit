@@ -9,6 +9,13 @@ final class AppSettings {
     private var memory: [String: Any] = [:]
     init(isolated: Bool) { defaults = isolated ? nil : .standard }
     private func value(_ key: String) -> Any? { defaults?.object(forKey: key) ?? memory[key] }
+    /// Only Scribbit-owned keys. Never remove an entire defaults domain.
+    func reset() {
+        for key in ["noteBookmark", "didOfferLogin", "showNotchIndicator", "animationSpeed", "hoverDelay"] {
+            if let defaults { defaults.removeObject(forKey: key) }
+            else { memory.removeValue(forKey: key) }
+        }
+    }
     private func set(_ value: Any?, key: String) {
         if let defaults { defaults.set(value, forKey: key) }
         else { memory[key] = value }
