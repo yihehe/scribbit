@@ -94,6 +94,9 @@
   Focus must not undo viewport restoration; do not add a scroll lock or polling.
 - No polling timers, networking, global keyboard monitors, Accessibility prompts,
   or watchers just to implement notch hover. Preserve cancellation/reentry logic.
+- Open-note hover dismissal uses the separate display-clamped retention region,
+  not the exact contour. Keep both its initial decision and delayed recheck in
+  sync. Never reuse the grace region for closed entry or outside-click hit testing.
 - Entry dwell uses validated `HoverDelay`, default 100 ms, range 0–1000 ms in
   50 ms steps. Zero removes the wait, not queued-work eligibility checks.
   Keep it independent of exit/animation clocks. Delay changes may restart pending

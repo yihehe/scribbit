@@ -46,6 +46,20 @@ public struct NotchGeometry: Equatable {
         CGSize(width: min(660, max(1, screen.width - 48)),
                height: min(460 + contentTop + 12, max(1, screen.height - 36)))
     }
+    /// A pointer-only grace area around the open surface. This does not change
+    /// the closed trigger, visible contour, native window, or click hit testing.
+    public var hoverRetentionFrame: CGRect {
+        let surface = CGRect(x: screen.midX - expandedSize.width / 2,
+                             y: screen.maxY - expandedSize.height,
+                             width: expandedSize.width, height: expandedSize.height)
+        return surface.insetBy(dx: -48, dy: -24).intersection(screen)
+    }
+    public func hoverRetentionContains(_ point: CGPoint) -> Bool {
+        let frame = hoverRetentionFrame
+        // Include the physical screen's exact top edge like triggerContains.
+        return !frame.isNull && point.x >= frame.minX && point.x <= frame.maxX
+            && point.y >= frame.minY && point.y <= frame.maxY
+    }
     /// Reserve the spring overshoot once, never resize the window on each frame.
     public func panelFrame() -> CGRect {
         let size = CGSize(width: expandedSize.width + 24, height: expandedSize.height + 12)

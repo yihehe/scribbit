@@ -24,6 +24,28 @@ app default. Its shared geometry and asymmetric spring offset are used.
 Re-exported GIF and PNG were byte-identical across two runs after adding the frog; the PNG
 poster is 27,525 bytes.
 
+## Forgiving hover dismissal — November 15, 2026
+
+Hover-opened notes now retain the pointer within a display-clamped region
+extending 48 points beyond each side and 24 points below the expanded surface.
+The visible contour, native panel, closed entry target and outside-click hit
+testing are unchanged. The existing 180 ms exit delay, reentry cancellation,
+pin/dialog/settings/drag holds and save-before-close policy remain.
+
+| Check | Result / ignored local evidence |
+| --- | --- |
+| Unit/filesystem suite with approved host coordination access | **107 tests in 13 suites passed**; `build/hover-retention/tests.log` |
+| Fresh release build and strict signature | Passed; `build/hover-retention/build.log` |
+| Focused geometry regressions | Side and bottom thresholds including exact boundaries, physical screen top, unchanged closed trigger, display clipping and translated display origins |
+| Whitespace and GUI script syntax | Passed; `git diff --check` and `bash -n Scripts/gui-smoke.sh` |
+| New opt-in GUI acceptance | Compiled assertions cover staying in grace, canceling a pending exit on reentry, and strict outside-click dismissal; **not executed** |
+| Manual acceptance — November 16, 2026 | Candidate launched at the user's request; user reported “looks good” and approved PR preparation. This does not establish execution of every GUI assertion |
+
+Automated validation did not launch the GUI or access production notes/preferences.
+The standalone candidate, `build/hover-retention/Scribbit.app`, was subsequently
+launched at the user's request for manual review. No installed bundle was replaced
+or login registration changed. No new runtime dependency or event monitor was added.
+
 ## Automatic development downloads — November 15, 2026
 
 Added default-retention Actions artifacts for successful builds and a separate,

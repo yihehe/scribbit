@@ -24,6 +24,7 @@ Changing the rate during motion only affects subsequent transitions.
 | Departure | Outgoing source remains visible, fading for 0.16 s while the shape contracts; text is released only after dismissal completes |
 | Shape geometry | Shoulder capped at 14 pt, lower radius capped at 28 pt; native circular arcs |
 | Hover entry / exit | Configurable 0–1000 ms dwell in 50 ms steps, default 100 ms; fixed 180 ms exit delay; reentry cancels dismissal |
+| Open-surface pointer grace | Hover dismissal allows 48 pt beyond each horizontal edge and 24 pt below the open surface, clipped to its display. The closed trigger and actual click contour do not grow |
 | Focus | Menu and completed hover openings activate the panel and focus the editor at the restored selection; type without clicking |
 | Pin | Keeps the note open across pointer exit, outside clicks, and app deactivation; Done/Escape/normal quit still save and close |
 | Working-surface holds | Settings popup, menus, dialogs, file I/O, and active pointer drags inhibit hover dismissal |
@@ -63,6 +64,10 @@ flowchart LR
   suppression. Exit timing, motion clocks and Reduce Motion are unchanged.
 - `NotchGeometry.panelFrame` is a top-attached reservation, including spring
   overshoot. The hosting view is laid out once inside that reservation.
+- `NotchGeometry.hoverRetentionFrame` is only a pointer grace region for an
+  already-open hover note. Both scheduling and the delayed callback use it, so
+  returning to the grace region cancels dismissal. Outside-click handling still
+  uses the visible contour; transparent buffer space never intercepts clicks.
 - `NotchContour` generates the shared shape for animation, hit-testing, screenshots,
   and the fixture-only animated preview. Transparent corners are not interaction targets.
 - `NotchPresenter` owns Core Animation and transition completion. Display changes
