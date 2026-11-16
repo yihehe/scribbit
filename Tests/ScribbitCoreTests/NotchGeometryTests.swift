@@ -19,6 +19,46 @@ final class NotchGeometryTests {
         expectEqual(g.panelFrame().maxY, 1080)
         expectEqual(g.screen.maxY - g.contentTop, 1048)
     }
+    @Test func testOpenHoverRetentionAddsBoundedPointerLeewayWithoutGrowingTrigger() {
+        let g = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1512, height: 982),
+                              cameraWidth: 184, topInset: 32)
+        let left = g.screen.midX - g.expandedSize.width / 2
+        let right = g.screen.midX + g.expandedSize.width / 2
+        let bottom = g.screen.maxY - g.expandedSize.height
+        #expect(g.hoverRetentionContains(CGPoint(x: left - 47, y: 700)))
+        #expect(g.hoverRetentionContains(CGPoint(x: right + 47, y: 700)))
+        #expect(g.hoverRetentionContains(CGPoint(x: left - 48, y: 700)))
+        #expect(g.hoverRetentionContains(CGPoint(x: right + 48, y: 700)))
+        #expect(!g.hoverRetentionContains(CGPoint(x: left - 49, y: 700)))
+        #expect(!g.hoverRetentionContains(CGPoint(x: right + 49, y: 700)))
+        #expect(g.hoverRetentionContains(CGPoint(x: g.screen.midX, y: bottom - 23)))
+        #expect(g.hoverRetentionContains(CGPoint(x: g.screen.midX, y: bottom - 24)))
+        #expect(!g.hoverRetentionContains(CGPoint(x: g.screen.midX, y: bottom - 25)))
+        #expect(g.hoverRetentionContains(CGPoint(x: g.screen.midX, y: g.screen.maxY)))
+        #expect(!g.hoverRetentionContains(CGPoint(x: g.screen.midX, y: g.screen.maxY + 1)))
+        #expect(g.trigger == CGRect(x: 658, y: 944, width: 196, height: 38))
+        #expect(!g.triggerContains(CGPoint(x: left - 20, y: 700)))
+    }
+    @Test func testOpenHoverRetentionFollowsNegativeAndVerticalDisplayOrigins() {
+        let original = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1512, height: 982),
+                                     cameraWidth: 184, topInset: 32)
+        let moved = NotchGeometry(screen: original.screen.offsetBy(dx: -1920, dy: 900),
+                                  cameraWidth: 184, topInset: 32)
+        #expect(moved.hoverRetentionFrame == original.hoverRetentionFrame.offsetBy(dx: -1920, dy: 900))
+        let point = CGPoint(x: original.hoverRetentionFrame.minX + 1,
+                            y: original.hoverRetentionFrame.minY + 1)
+        #expect(moved.hoverRetentionContains(CGPoint(x: point.x - 1920, y: point.y + 900)))
+    }
+    @Test func testOpenHoverRetentionClampsToSmallDisplay() {
+        let g = NotchGeometry(screen: CGRect(x: 40, y: 50, width: 400, height: 300),
+                              cameraWidth: 100, topInset: 20)
+        #expect(g.hoverRetentionFrame.minX == g.screen.minX)
+        #expect(g.hoverRetentionFrame.maxX == g.screen.maxX)
+        #expect(g.hoverRetentionFrame.minY >= g.screen.minY)
+        #expect(g.hoverRetentionFrame.maxY == g.screen.maxY)
+        #expect(!g.hoverRetentionContains(CGPoint(x: g.screen.minX - 1, y: g.screen.midY)))
+        #expect(!g.hoverRetentionContains(CGPoint(x: g.screen.maxX + 1, y: g.screen.midY)))
+    }
     @Test func testSheetAttachmentStaysBelowCameraAcrossDisplayOrigins() {
         let screens: [(CGRect, CGFloat)] = [
             (CGRect(x: 0, y: 0, width: 1512, height: 982), 32),

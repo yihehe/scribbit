@@ -109,6 +109,12 @@ semaphore-controlled busy state without timing-dependent sleeps.
 
 Animation-specific checks and the rendered fixture GIF are documented in `NOTCH-UX.md`.
 
+Hover-retention geometry tests cover both side margins, bottom/top boundaries,
+unchanged closed trigger, small-display clipping and negative/vertical origins.
+The opt-in `HOVER_RETENTION_SMOKE_PASS` gate additionally checks that resting
+outside the visible contour stays open, returning to that grace region cancels
+a pending close, and an intentional outside click there still saves/closes.
+
 The command sandbox can prevent `NSFileCoordinator` from contacting macOS's
 coordination service. In that environment, real disk tests return Cocoa error
 256 even though fixtures exist. **Do not remove coordination or silently bypass

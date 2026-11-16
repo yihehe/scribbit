@@ -120,6 +120,12 @@ Command-comma uses the normal application menu.
 Display-change notifications reconstruct indicators and reposition a visible
 editor without touching the current text.
 
+Hover-close retention is intentionally separate from the exact contour used by
+outside-click handling. An open surface has a display-clamped 48-point horizontal
+and 24-point bottom grace region. The native window, closed trigger and visible
+mask are unchanged; outside clicks in that region still intentionally close.
+The existing 180 ms delayed close and modal/pin/drag/save protections are unchanged.
+
 ## Persistence and transaction limits
 
 UTF-8 files are limited to 2 MiB. The reader checks size and then reads at most

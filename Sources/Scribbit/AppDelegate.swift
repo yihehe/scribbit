@@ -265,9 +265,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         dwell = work
         DispatchQueue.main.asyncAfter(deadline: .now() + model.hoverDelay, execute: work)
     }
+    private func retainsHover(at point: CGPoint) -> Bool {
+        presenter.contains(point) || presenter.geometry?.hoverRetentionContains(point) == true
+    }
     private func trackOpenPointer() {
         guard !presenter.isTransitioning else { return }
-        let inside = presenter.contains(self.pointerLocation)
+        let inside = retainsHover(at: self.pointerLocation)
         if inside { exitWork?.cancel(); exitWork = nil }
         let changed = inside != pointerInsideSurface
         pointerInsideSurface = inside
@@ -277,7 +280,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 dragging: NSEvent.pressedMouseButtons != 0) else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, NotchInteraction.closesOnExit(openedByHover: self.openedByHover,
-                pinned: self.model.pinned, inside: self.presenter.contains(self.pointerLocation),
+                pinned: self.model.pinned, inside: self.retainsHover(at: self.pointerLocation),
                 heldByUI: self.presentingDialog || self.trackingMenu || self.settingsPresented,
                 busy: self.model.isBusy || self.closing,
                 dragging: NSEvent.pressedMouseButtons != 0) else { return }
@@ -795,6 +798,28 @@ extension AppDelegate {
         pointerMoved()
         try await waitForSmoke { self.presenter.phase == .expanded && self.model.isOpen }
         try check(openedByHover, "Dwell did not produce hover-opened state")
+        let retention = geometry(display).hoverRetentionFrame
+        let grace = CGPoint(x: retention.minX + 4, y: retention.midY)
+        try check(!presenter.contains(grace) && retainsHover(at: grace),
+                  "Hover grace fixture was not outside the actual surface")
+        testPointer = grace; pointerMoved()
+        try await Task.sleep(nanoseconds: 240_000_000)
+        try check(model.isOpen && panel.isVisible && exitWork == nil,
+                  "Pointer grace area incorrectly scheduled hover dismissal")
+        testPointer = outside; pointerMoved()
+        try await Task.sleep(nanoseconds: 60_000_000)
+        testPointer = grace; pointerMoved()
+        try await Task.sleep(nanoseconds: 220_000_000)
+        try check(model.isOpen && panel.isVisible && exitWork == nil,
+                  "Returning to the grace area did not cancel pending dismissal")
+        // Grace is not an invisible click target: an intentional outside click
+        // still saves/closes using the real contour rather than the buffer.
+        outsideClick()
+        try await waitForSmoke { !self.model.isOpen && !self.closing }
+        try check(!panel.isVisible, "Hover grace area swallowed an outside click")
+        testPointer = inside; pointerMoved()
+        try await waitForSmoke { self.presenter.phase == .expanded && self.model.isOpen }
+        print("HOVER_RETENTION_SMOKE_PASS: outside-contour grace, delayed-close cancellation, unchanged outside-click behavior")
         settingsAction()
         try await waitForSmoke { self.settingsPresented && self.settingsPopover.isShown }
         testPointer = outside; pointerMoved()
