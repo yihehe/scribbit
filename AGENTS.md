@@ -113,7 +113,7 @@
 | --- | --- |
 | Sources/ScribbitCore/ | Storage, session, indentation, geometry and motion |
 | Sources/Scribbit/ | Native editor, app shell, presenter and opt-in GUI harness |
-| Tests/ | Swift Testing unit and actual-filesystem regression suites |
+| Tests/ | Swift/app, actual-filesystem and offline CI-publisher regression suites |
 | Resources/Info.plist | App identity, version and accessory-app metadata |
 | Resources/Branding/ | Editable app-icon and frog-mark SVGs; see Docs/BRANDING.md |
 | Sources/Scribbit/Resources/ | Committed 1x/2x template exports loaded by BrandAssets |
@@ -155,3 +155,8 @@ Never patch system SDK files or generalize it into arbitrary interface rewriting
   reintroduce ambient desktop deactivation notifications into controlled test
   sequences. Production still observes the real application notification.
 - Never push, publish a release, install or restart an app without authorization.
+- CI retains each successful build as an artifact with repository-default
+  retention. Only the separate trusted main-push job may write the mutable
+  development prerelease/tag. Keep PR build jobs read-only, the stale-run guard,
+  upload/checksum-before-replacement and recovery behavior. Publisher tests must
+  remain offline; do not mutate a real release to validate them.
