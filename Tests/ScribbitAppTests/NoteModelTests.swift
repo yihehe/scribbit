@@ -20,34 +20,125 @@ private final class TestStore: NoteStore {
 
 final class NoteModelTests {
     private let url = URL(fileURLWithPath: "/example/note.md")
-    @Test @MainActor func welcomeStateDoesNotReplaceOutgoingOrUnsavedEditor() async {
+    @Test @MainActor func untitledDraftSurvivesDismissalAndRetainsPosition() async {
         let store = TestStore()
         let model = NoteModel(session: NoteSession(store: store))
-        #expect(model.showsWelcome)
-        store.failRead = true
-        _ = await model.open(url)
-        #expect(model.showsWelcome)
-        store.failRead = false
-        _ = await model.open(url)
-        #expect(!model.showsWelcome)
-        model.text = "unsaved"
-        store.failSave = true
-        _ = await model.close()
-        #expect(!model.showsWelcome && model.isOpen)
-        store.failSave = false
-        _ = await model.close(keepPresentation: true)
-        #expect(!model.showsWelcome)
-        #expect(model.text == "unsaved")
-        model.showWelcomeIfClosed()
-        #expect(!model.showsWelcome)
+        model.openUntitled()
+        #expect(model.isOpen && model.isUntitled && !model.isDirty)
+        model.text = "RAM-only draft 🐸"
+        model.rememberEditorSelection(NSRange(location: 3, length: 0))
+        model.rememberEditorScrollOrigin(CGPoint(x: 0, y: 12))
+        #expect(model.isDirty)
+        #expect(await model.close(keepPresentation: true))
         model.clearClosedPresentation()
-        #expect(!model.showsWelcome && model.text.isEmpty)
-        model.showWelcomeIfClosed()
-        #expect(model.showsWelcome)
-        _ = await model.open(url)
-        #expect(!model.showsWelcome)
-        model.showWelcomeIfClosed()
-        #expect(!model.showsWelcome)
+        #expect(!model.isOpen && model.text == "RAM-only draft 🐸")
+        #expect(store.bytes == Data("hello".utf8))
+        model.openUntitled()
+        #expect(model.isOpen && model.editorSelection.location == 3)
+        #expect(model.editorScrollOrigin == CGPoint(x: 0, y: 12))
+        await model.save()
+        await model.reload()
+        #expect(model.text == "RAM-only draft 🐸")
+        model.discardUntitled()
+        #expect(model.text.isEmpty && !model.isDirty && model.editorSelection.location == 0)
+        #expect(model.editorScrollOrigin == nil)
+    }
+    @Test @MainActor func untitledSaveCreatesFileAndFailureRetainsDraft() async throws {
+        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent(".build/model-fixtures/\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = NoteModel()
+        model.openUntitled()
+        model.text = "my draft"
+        let existing = directory.appendingPathComponent("existing.md")
+        try Data("other writer".utf8).write(to: existing)
+        #expect(await !model.saveUntitled(to: existing))
+        #expect(model.isUntitled && model.isOpen && model.isDirty && model.text == "my draft")
+        #expect(try String(contentsOf: existing, encoding: .utf8) == "other writer")
+        #expect(await !model.saveUntitled(to: directory.appendingPathComponent("missing/note.md")))
+        #expect(model.text == "my draft" && !model.isBusy)
+        let destination = directory.appendingPathComponent("saved.md")
+        #expect(await model.saveUntitled(to: destination))
+        #expect(!model.isUntitled && model.isOpen && !model.isDirty)
+        #expect(model.url == destination && model.text == "my draft")
+        model.text = "edited after saving"
+        #expect(await model.close())
+        #expect(try String(contentsOf: destination, encoding: .utf8) == "edited after saving")
+    }
+    @Test @MainActor func hiddenDraftCannotBeReplacedWithoutExplicitDiscard() async {
+        let model = NoteModel(session: NoteSession(store: TestStore()))
+        model.openUntitled()
+        model.text = "keep this draft"
+        #expect(await model.close())
+        #expect(await !model.open(url))
+        #expect(model.text == "keep this draft" && model.isUntitled && model.isDirty)
+        model.discardUntitled()
+        #expect(await model.open(url))
+        model.discardUntitled() // Not an escape hatch for file-backed edits.
+        #expect(model.text == "hello" && !model.isUntitled)
+    }
+    @Test @MainActor func untitledReadbackMismatchAndOversizeKeepDraft() async throws {
+        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent(".build/model-fixtures/\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = NoteModel(session: NoteSession(store: TestStore()))
+        model.openUntitled()
+        model.text = "draft differs from concurrently replaced file"
+        #expect(await !model.saveUntitled(to: directory.appendingPathComponent("mismatch.md")))
+        #expect(model.text == "draft differs from concurrently replaced file")
+        #expect(model.isOpen && model.isUntitled && !model.isBusy && model.url == nil)
+        model.text = String(repeating: "x", count: DiskNoteStore.maximumBytes + 1)
+        let oversized = directory.appendingPathComponent("oversized.md")
+        #expect(await !model.saveUntitled(to: oversized))
+        #expect(!FileManager.default.fileExists(atPath: oversized.path))
+        #expect(model.isDirty && model.isUntitled)
+    }
+    @Test @MainActor func settingsResetRestoresOnlyOwnedValuesInIsolatedStore() {
+        let settings = AppSettings(isolated: true)
+        settings.bookmark = Data([1, 2])
+        settings.didOfferLogin = true
+        settings.indicator = true
+        settings.animationSpeed = 1.75
+        settings.hoverDelay = 0.9
+        settings.reset()
+        #expect(settings.bookmark == nil && !settings.didOfferLogin && !settings.indicator)
+        #expect(settings.animationSpeed == 1 && settings.hoverDelay == HoverDelay.defaultValue)
+        settings.reset() // Idempotent.
+        #expect(settings.bookmark == nil && !settings.didOfferLogin)
+    }
+    @Test @MainActor func resetClearsFileAndDraftStateWithoutTouchingStoredNote() async {
+        let store = TestStore()
+        let model = NoteModel(session: NoteSession(store: store))
+        #expect(await model.open(url))
+        model.text = "explicitly discarded edits"
+        model.rememberEditorSelection(NSRange(location: 4, length: 0))
+        model.rememberEditorScrollOrigin(CGPoint(x: 0, y: 123))
+        model.preview = true
+        model.pinned = true
+        model.controlsExpanded = true
+        model.error = "stale error"
+        store.failRead = true
+        store.failSave = true
+        let revision = model.selectionRevision
+        #expect(await model.resetDiscardingEdits())
+        #expect(model.isOpen && model.isUntitled && model.url == nil && !model.isDirty)
+        #expect(model.text.isEmpty && model.error == nil && model.filename == "Untitled note")
+        #expect(!model.preview && !model.pinned && !model.controlsExpanded)
+        #expect(model.editorSelection == NSRange(location: 0, length: 0))
+        #expect(model.editorScrollOrigin == nil && model.selectionRevision == revision + 1)
+        #expect(store.bytes == Data("hello".utf8))
+        model.text = "hidden draft"
+        #expect(await model.close())
+        #expect(await model.resetDiscardingEdits())
+        #expect(model.isOpen && model.isUntitled && model.text.isEmpty && !model.isDirty)
+        // The worker was reset, not merely the published UI state.
+        store.failRead = false
+        store.failSave = false
+        #expect(await model.close())
+        #expect(await model.open(URL(fileURLWithPath: "/example/next.md")))
+        #expect(model.text == "hello")
     }
     @Test @MainActor func popupViewStateHasNoPreferencePersistence() {
         let popup = SettingsPopupState()
@@ -447,6 +538,7 @@ final class NoteModelTests {
         expectFalse(prematureClose)
         await model.save()
         await model.reload()
+        #expect(await !model.resetDiscardingEdits())
         let creationWhileBusy = await model.createIfMissing(url)
         expectFalse(creationWhileBusy)
         await model.saveCopy(to: url)

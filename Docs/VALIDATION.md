@@ -1,5 +1,29 @@
 # Validation record
 
+## Untitled drafts and first-time setup reset — PR preparation, November 16, 2026
+
+Rebased the local feature onto fetched main at `1308509`, preserving the shared
+NoteFooter's 20-point native row and 8-point top padding, forgiving hover retention,
+README demo and all prior validation records. The independent file-watching /
+64 MiB proposal is not included; the existing 2 MiB selected-file limit remains.
+README first-use and recovery instructions now describe the actual untitled mode.
+
+| Check | Result / ignored project-local evidence |
+| --- | --- |
+| Rebase | Clean onto `1308509`; feature remains a single author-scoped local branch |
+| Full unit/filesystem/resource suite, approved coordination access | **115 tests in 14 suites passed**; `build/untitled-pr/tests.log` |
+| Shell runner regressions | **3 scenarios passed** under system Bash; `build/untitled-pr/script-tests.log` |
+| Offline development-publisher suite | **16 tests passed**; `build/untitled-pr/publisher-tests.log` |
+| Fresh ad-hoc-signed release candidate | Passed; `build/untitled-pr/Scribbit.app`, build log alongside it |
+| Script syntax / plist / whitespace | Bash syntax, Info.plist lint and diff whitespace passed |
+| User-file, production preferences, reset, login or GUI execution | **Not performed** during this preparation |
+
+Manual acceptance remains required for no-file focus, draft reopen position,
+Save As cancellation/errors, hidden-draft quit, reset-from-preview native focus,
+undo clearing, camera-safe sheet sequencing and actual login unregister/relaunch.
+The unit suite is not evidence for these native GUI / operating-system flows.
+No existing running or installed app was replaced or launched.
+
 ## Open-note footer identity — November 16, 2026
 
 Added a subtle frog/pencil plus Scribbit wordmark to the bottom-left of the open
@@ -362,3 +386,34 @@ The repository screen is a bounded text/path/packaging check, not a guarantee th
 no secret exists, a vulnerability audit, a trademark clearance or legal clearance.
 The [platform reference catalog](REFERENCE.md) documents the Apple APIs used;
 it does not establish source independence or resolve licensing obligations.
+
+## Untitled notepad candidate
+
+The no-file welcome has been replaced by the regular native editor with a RAM-only
+draft, explicit Open/Save As and a visible loss warning. File-backed behavior is
+unchanged. See the untitled acceptance matrix in TESTING.md. GUI validation,
+including modal cancellation and hidden-draft quit, has not been run for this
+candidate. The running user app and production preferences have not been touched.
+
+| Candidate check | Result |
+| --- | --- |
+| Scripts/test.sh with approved host coordination | 107 tests in 13 suites passed |
+| Sandboxed initial run | Existing NSFileCoordinator fixtures and new read-back fixture blocked with Cocoa 256; not treated as behavior failures |
+| Scripts/build-app.sh | Ad-hoc-signed build succeeded; no launch/install |
+| git diff --check | Passed |
+| GUI sheets, cancellation, hidden-draft quit and physical notch | Not run; manual validation required |
+
+### About reset follow-up
+
+Reset App is a secondary About action with explicit reset scope and separate
+Save or Save As / Cancel / Discard handling. Only known app preference keys and
+RAM state are cleared; no note file is deleted. ServiceManagement unregistering
+is production-only and occurs only after explicit confirmation. The confirmation
+explains that the next real launch repeats first-launch automatic registration.
+
+| Check | Result |
+| --- | --- |
+| Updated host-coordinated unit/filesystem suite | 110 tests in 13 suites passed |
+| Reset-specific tests | RAM preference defaults/idempotence, worker/model file and hidden-draft reset, selection/viewport clear, busy refusal and no store I/O on discard |
+| Production reset, real defaults or login mutation | Not run |
+| GUI confirmation/cancel/failure ordering and focus | Not run; manual acceptance remains required |

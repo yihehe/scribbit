@@ -37,9 +37,11 @@ stateDiagram-v2
     Hidden --> Reading: hover dwell or Open
     Reading --> Expanding: valid UTF-8 snapshot and eligible pointer
     Expanding --> Editing: shape and content arrive
-    Hidden --> Welcome: no selected file
-    Reading --> Welcome: read fails and recoverable alert
-    Welcome --> Reading: choose/create file
+    Hidden --> Untitled: no selected file
+    Reading --> Untitled: read fails and recoverable alert
+    Untitled --> Reading: choose file after Save/Discard/Cancel
+    Untitled --> Hidden: dismiss and retain RAM draft
+    Untitled --> Editing: Save As creates a new file
     Editing --> Saving: Done / Escape / outside / deactivate / quit
     Saving --> Collapsing: successful dirty save or clean no-op
     Collapsing --> Hidden: fade completes and buffer is released
@@ -48,7 +50,9 @@ stateDiagram-v2
     Editing --> Editing: confirmed reload reads new baseline
 ```
 
-1. Only a successful `NoteSession.close()` permits hiding or normal termination.
+1. File-backed notes require a successful `NoteSession.close()` before hiding or
+   normal termination. Untitled drafts hide without disk I/O and remain in RAM;
+   replacing them or quitting requires Save/Discard/Cancel when nonempty.
 2. Failed writes retain URL, baseline, current text, dirty flag, and open state.
 3. A failed reload retains all existing edits. Read first, mutate second.
 4. Opening an already-open session is a no-op; choosing another file closes first.
@@ -178,11 +182,23 @@ a persistent system menu-bar status item.
 Popup presentation holds pointer-exit, outside-click and app-deactivation close.
 Escape dismisses the popup before closing the note. Explicit Done/Choose/Create/
 Quit paths dismiss it before continuing their normal save-first lifecycle.
-When no file has been selected, a read-only welcome surface exposes Choose/New
-and guidance for expanded controls/Command-comma. `NoteModel.showsWelcome` changes at successful open or when
-the controller explicitly reveals a closed welcome surface. Clearing hidden text
-does not replace the native editor: a normal close/reopen retains its identity.
-The departure animation never substitutes welcome content for the outgoing note.
+When no file has been selected, the same native editor presents an editable
+untitled notepad. A permanently visible strip offers Open and Save As, and warns
+that unsaved changes will be lost on quit. `NoteModel.isUntitled` distinguishes
+this RAM-only mode from a file-worker session. Closing the surface retains its
+source, caret and viewport until reopening, explicit discard or process exit.
+There is no autosave database or recovery journal. File-backed hidden buffers
+continue to be released as before.
+
+Open and normal quit accept pending native composition, then ask Save As / Cancel /
+Discard for a nonempty draft, including when it was hidden. Cancelling preserves
+it. Save As uses a native sheet, creates a new UTF-8 file without overwriting,
+checks the existing 2 MiB bound, opens it through the serial worker and verifies
+its bytes still match the draft before adopting the file-backed session. Failure
+leaves the draft editable; if a file was created before a failed read-back, the
+error instructs the user to choose a new path. Subsequent file saves retain the
+original coordinated exact-byte conflict protection. No third-party dependency
+or additional disk polling is introduced.
 
 ### About sheet ordering and camera safety
 
@@ -192,7 +208,7 @@ that elevated surface and has no camera-safe attachment point. About now uses
 `beginSheetModal(for:)`, explicitly at its parent panel's level. Native sheet
 parenting keeps the dialog ordered with the note rather than behind it.
 The alert content is minimal: native application icon, display name and version
-from the packaged bundle, and Close. It contains no usage/help dump or custom
+from the packaged bundle, Close, and a secondary Reset App action. It contains no usage/help dump or custom
 screen-position offsets. The existing camera-safe attachment is unchanged.
 
 The panel's `NSWindowDelegate` sheet-position callback delegates to
@@ -233,3 +249,30 @@ chrome-only updates do not replace AppKit's live preedit buffer. Only genuine
 model replacements assign the editor string, clamp selection and clear history.
 Save/Close accept pending composition through AppKit's public `unmarkText` before
 persisting. See `NATIVE-EDITOR.md` for contract details and test limitations.
+
+## First-time setup reset
+
+About contains the secondary Reset App action, not the normal settings controls.
+A camera-safe native confirmation sheet describes exactly what will be reset.
+A separate Save or Save As / Cancel / Discard sheet resolves dirty file/draft
+text first. Cancelling either sheet or failing to save leaves the session intact.
+Discard is deferred until Launch at Login can be disabled; if unregistering fails,
+reset aborts rather than clearing the note/preferences. Native editing stays
+disabled during asynchronous login removal so later keystrokes cannot slip past
+the earlier Save/Discard decision. A user-selected Save may
+have already saved the note at that point, but no automatic deletion or truncation
+is part of reset.
+
+| Layer | Reset behavior |
+| --- | --- |
+| NoteSession | Explicit confirmed discard clears URL/source/baseline in memory, with no disk read/write |
+| NoteModel | Clears note identity, dirty source, errors, selection, viewport and fingerprint; opens blank untitled mode |
+| AppSettings | Removes only noteBookmark, didOfferLogin, showNotchIndicator, animationSpeed and hoverDelay; never removes the defaults domain |
+| Controller | Releases scoped access, cancels pending hover tasks, resets hover/pin/preview state, restores animation/hover defaults and clears native undo history |
+| Login | Production explicitly unregisters an enabled/pending login item; isolated mode never calls ServiceManagement |
+| Presentation | Returns to focused editable blank notepad immediately, without restart |
+
+The first-launch login marker is reset too. Login is disabled immediately; like a
+fresh installation, the next actual app launch attempts automatic registration
+again. The reset confirmation states this explicitly. There is no user-note file
+delete operation, hidden database or external reset command.

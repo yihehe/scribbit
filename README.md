@@ -60,7 +60,11 @@ The build script uses an ad-hoc signature for local use. For distribution, set
 `SIGNING_IDENTITY` to a Developer ID identity, notarize, and staple yourself;
 notarization and universal distribution are not included.
 
-First launch shows a welcome surface with **Choose File…** and **New File…**.
+With no selected file, Scribbit opens the regular editable notepad with **Open…**
+and **Save As…**. The untitled draft stays in memory when dismissed and reopened;
+a visible warning explains that it is not saved. Opening another file or quitting
+normally asks **Save As / Cancel / Discard** if the draft contains text. Save As
+creates a new file and never overwrites an unopened existing file.
 Expand the bottom chevron for the settings gear, or press **Cmd-,** directly.
 There is no persistent menu-bar icon. Hover to reopen the
 surface, or reopen Scribbit from Finder/Spotlight while it is running.
@@ -155,6 +159,12 @@ state each time it opens; selecting a pending-approval item opens System Setting
 Later user changes in System Settings are not automatically undone on launch.
 If registration fails, use the popup to retry after installing the bundle.
 
+To test first-time setup, use **Settings → About → Reset App…**. Reset requires
+confirmation, resolves unsaved text first, forgets the selected file and app
+settings, and immediately opens a blank notepad without deleting note files. It
+also disables login registration now; like a fresh first launch, the next launch
+attempts registration again. No restart is required to use the blank notepad.
+
 Registration is implemented, but only an actual approved login cycle on your Mac
 can validate automatic startup. Rebuilding/replacing an ad-hoc-signed app may
 invalidate macOS login approval. Use a stable signing identity for everyday use.
@@ -162,9 +172,13 @@ To uninstall, disable Launch at Login first, quit, and delete the app.
 
 ## Saving and recovery
 
+- Untitled drafts are RAM-only and survive ordinary dismissal, but not process
+  exit, Force Quit or a crash. **Cmd-S** opens Save As; normal quit asks before
+  discarding nonempty text.
 - Each hidden-to-open transition rereads the selected file; an already-visible
   editor is never silently reloaded. The editor remains unavailable until read
-  succeeds; failed reads never expose an empty writable substitute.
+  succeeds. A failed read never replaces the selected file with empty text;
+  recovery can show a separate, clearly labeled untitled draft with the error.
 - Dirty content is compared with the exact bytes read at open/last save, inside
   `NSFileCoordinator`, then written atomically. Read and write transactions use
   a dedicated serial worker, not the UI thread. Controls freeze during I/O.

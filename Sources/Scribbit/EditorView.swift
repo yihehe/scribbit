@@ -13,20 +13,7 @@ struct NoteView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if model.showsWelcome {
-                VStack(spacing: 12) {
-                    Image(nsImage: BrandAssets.notch).font(.largeTitle)
-                    Text("A quiet place for your next thought.").font(.headline)
-                    Text("Choose a UTF-8 text or Markdown file to start writing.")
-                        .foregroundStyle(.secondary)
-                    HStack {
-                        Button("Choose File…", action: choose)
-                        Button("New File…", action: create)
-                    }
-                    Text("Expand the chevron for file controls, or press ⌘, for Settings.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity, maxHeight: .infinity).padding(20)
-            } else if model.preview {
+            if model.preview {
                 ScrollView {
                     Text((try? AttributedString(markdown: model.text,
                         options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(model.text))
@@ -40,13 +27,23 @@ struct NoteView: View {
                              scrollChanged: model.rememberEditorScrollOrigin)
                     .disabled(!model.isOpen)
             }
+            if model.isUntitled {
+                Divider()
+                HStack(spacing: 12) {
+                    Text("Not saved to a file. Unsaved changes will be lost when Scribbit quits.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Open…", action: choose)
+                    Button("Save As…", action: create)
+                }.padding(.horizontal, 16).padding(.vertical, 8)
+            }
             // Recovery never lives inside a collapsed disclosure.
             if let error = model.error {
                 Divider()
                 VStack(alignment: .leading, spacing: 8) {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .font(.callout).foregroundStyle(.red).textSelection(.enabled)
-                    if model.isOpen {
+                    if model.isOpen && !model.isUntitled {
                         HStack {
                             Button("Retry Save") { Task { await model.save() } }
                             Button("Save a Copy…", action: saveCopy)
@@ -72,7 +69,7 @@ struct NoteView: View {
                             .accessibilityLabel("File path: \(url.path)")
                             .accessibilityIdentifier("noteFilePath")
                     }
-                    Text(model.isOpen
+                    Text(model.isUntitled ? "RAM-only draft · not saved" : model.isOpen
                         ? (model.isDirty ? "Unsaved edits · saves when closed" : "File-backed note")
                         : "No note open")
                         .font(.caption).foregroundStyle(.secondary)
@@ -109,8 +106,8 @@ struct NoteView: View {
                 }
             }
         }
-        .disabled(model.isBusy)
-        .overlay { if model.isBusy { ProgressView("Updating file…").padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)) } }
+        .disabled(model.isBusy || model.resetInProgress)
+        .overlay { if model.isBusy || model.resetInProgress { ProgressView(model.resetInProgress ? "Resetting Scribbit…" : "Updating file…").padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)) } }
         .background(Color(white: 0.035))
     }
 }

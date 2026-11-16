@@ -47,12 +47,12 @@ struct SettingsPopupView: View {
             Text("Scribbit Settings").font(.headline)
             HStack {
                 Button("Choose File…", action: choose)
-                Button("New File…", action: create)
+                Button(model.isUntitled ? "Save As…" : "New File…", action: create)
             }
             HStack {
                 Group {
-                    Button("Save Now", action: save)
-                    Button("Save a Copy…", action: saveCopy)
+                    Button(model.isUntitled ? "Save As…" : "Save Now", action: save)
+                    Button("Save a Copy…", action: saveCopy).disabled(model.isUntitled)
                 }.disabled(!model.isOpen)
                 Spacer()
                 Button("Done", action: close)

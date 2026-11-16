@@ -29,14 +29,16 @@ private final class SessionWorker: @unchecked Sendable {
 final class NoteModel: ObservableObject {
     @Published var text = ""
     @Published var error: String?
-    @Published var filename = "Choose a note"
+    @Published var filename = "Untitled note"
     @Published var preview = false
     @Published var pinned = false
     @Published var controlsExpanded = false
     @Published var animationSpeed = 1.0
     @Published var hoverDelay = HoverDelay.defaultValue
-    @Published private(set) var showsWelcome = true
+    @Published private(set) var isUntitled = true
     @Published private(set) var isBusy = false
+    // Freeze native editing while a confirmed reset awaits login removal.
+    @Published var resetInProgress = false
     @Published private(set) var isOpen = false
     @Published private(set) var selectionRevision = 0
     // Only the current file's position, in RAM. Clearing hidden text must not
@@ -48,10 +50,67 @@ final class NoteModel: ObservableObject {
     private var baselineText = ""
     private let worker: SessionWorker
     init(session: NoteSession = NoteSession()) { worker = SessionWorker(session: session) }
-    var isDirty: Bool { isOpen && text != baselineText }
+    var isDirty: Bool { isUntitled ? !text.isEmpty : isOpen && text != baselineText }
+
+    /// Untitled text stays RAM-only across hover dismissal; no file worker session exists.
+    func openUntitled() {
+        guard !isBusy, !isOpen else { return }
+        if !isUntitled {
+            editorSelection = NSRange(location: 0, length: 0)
+            editorScrollOrigin = nil
+        }
+        isUntitled = true
+        url = nil
+        filename = "Untitled note"
+        isOpen = true
+        controlsExpanded = false
+        preview = false
+        selectionRevision &+= 1
+    }
+    func discardUntitled() {
+        guard isUntitled, !isBusy else { return }
+        text = ""
+        baselineText = ""
+        editorSelection = NSRange(location: 0, length: 0)
+        editorScrollOrigin = nil
+        selectionRevision &+= 1
+    }
+    /// Never overwrite an existing destination on behalf of an untitled draft.
+    func saveUntitled(to destination: URL) async -> Bool {
+        guard isUntitled, !isBusy else { return false }
+        let current = text
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await worker.perform { session in
+                let data = Data(current.utf8)
+                guard data.count <= DiskNoteStore.maximumBytes else { throw NoteError.tooLarge }
+                try data.write(to: destination, options: .withoutOverwriting)
+                try session.open(destination)
+                // A non-cooperating writer may replace the newly created file.
+                // Never substitute those bytes for the draft the user just saved.
+                guard session.text.utf8.elementsEqual(current.utf8) else {
+                    try session.close() // Clean baseline: no write.
+                    throw NoteError.conflict
+                }
+            }
+            url = destination
+            filename = destination.lastPathComponent
+            baselineText = current
+            isUntitled = false
+            isOpen = true
+            preview = false
+            selectionRevision &+= 1
+            error = nil
+            return true
+        } catch {
+            self.error = "Cannot save untitled note. Your draft is still here. Choose a new file path. " + error.localizedDescription
+            return false
+        }
+    }
 
     func open(_ url: URL) async -> Bool {
-        guard !isBusy, !isOpen else { return false }
+        guard !isBusy, !isOpen, !isUntitled || text.isEmpty else { return false }
         isBusy = true
         defer { isBusy = false }
         do {
@@ -69,11 +128,36 @@ final class NoteModel: ObservableObject {
             text = loaded.text
             baselineText = loaded.text
             filename = url.lastPathComponent
-            showsWelcome = false
+            isUntitled = false
             controlsExpanded = false
             preview = false
             isOpen = true
             error = nil
+            return true
+        } catch { self.error = error.localizedDescription; return false }
+    }
+    /// Controller must resolve Save/Discard/Cancel and login removal first.
+    /// This only clears app-owned in-memory state, never the note on disk.
+    func resetDiscardingEdits() async -> Bool {
+        guard !isBusy else { return false }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await worker.perform { $0.resetDiscardingEdits() }
+            url = nil
+            text = ""
+            baselineText = ""
+            closedSourceFingerprint = nil
+            editorSelection = NSRange(location: 0, length: 0)
+            editorScrollOrigin = nil
+            selectionRevision &+= 1
+            filename = "Untitled note"
+            isUntitled = true
+            isOpen = true
+            error = nil
+            preview = false
+            pinned = false
+            controlsExpanded = false
             return true
         } catch { self.error = error.localizedDescription; return false }
     }
@@ -88,6 +172,11 @@ final class NoteModel: ObservableObject {
     func close(keepPresentation: Bool = false) async -> Bool {
         guard !isBusy else { return false }
         guard isOpen else { return true }
+        if isUntitled {
+            isOpen = false
+            if !keepPresentation { clearClosedPresentation() }
+            return true
+        }
         isBusy = true
         let current = text
         defer { isBusy = false }
@@ -106,18 +195,16 @@ final class NoteModel: ObservableObject {
     }
     func clearClosedPresentation() {
         guard !isOpen else { return }
-        text = ""
-        baselineText = ""
+        if !isUntitled {
+            text = ""
+            baselineText = ""
+        }
         preview = false
         pinned = false
         controlsExpanded = false
     }
-    func showWelcomeIfClosed() {
-        guard !isOpen, !isBusy, text.isEmpty else { return }
-        showsWelcome = true
-    }
     func save() async {
-        guard !isBusy, isOpen else { return }
+        guard !isBusy, isOpen, !isUntitled else { return }
         isBusy = true
         let current = text
         defer { isBusy = false }
@@ -128,7 +215,7 @@ final class NoteModel: ObservableObject {
         } catch { self.error = error.localizedDescription }
     }
     func reload() async {
-        guard !isBusy, isOpen else { return }
+        guard !isBusy, isOpen, !isUntitled else { return }
         isBusy = true
         let current = text
         defer { isBusy = false }
@@ -156,7 +243,7 @@ final class NoteModel: ObservableObject {
         } catch { self.error = error.localizedDescription; return false }
     }
     func saveCopy(to destination: URL) async {
-        guard !isBusy, isOpen else { return }
+        guard !isBusy, isOpen, !isUntitled else { return }
         guard destination.resolvingSymlinksInPath() != url else {
             error = "Choose a different path for the copy. The original was not overwritten."
             return

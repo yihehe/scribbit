@@ -32,7 +32,7 @@
   file coordination or reads/writes on the UI thread.
 - Never hide or terminate normally after a failed save. Show errors and keep the
   buffer. Never substitute an empty file after read failure.
-- A fresh disk read is required for every hidden-to-open transition. Do not
+- A fresh disk read is required for every file-backed hidden-to-open transition. Do not
   silently reload a visible editor or discard its edits.
 - Keep exact-byte conflict detection and atomic replacement inside coordinated
   access. Do not claim it prevents races with non-cooperating writers.
@@ -57,12 +57,17 @@
   Cmd-Return must work even while Done is hidden.
 - Pin/Preview are togglable icon buttons, with selected appearance and accessible
   state—not preference checkboxes. About contains only the app icon, bundle name,
-  version, and dismissal; do not put usage/help instructions in it.
+  version, dismissal, and the secondary Reset App action; do not put usage/help
+  instructions in it. Reset requires explicit confirmation and save/discard/cancel
+  for dirty text. Remove only app-owned preference keys, never an entire defaults
+  domain or user files; isolated tests must not mutate login registration.
 - The popup must hold automatic dismissal while in use. Escape dismisses it
   before closing the note; explicit file/close/quit actions keep save-first
-  behavior. The welcome surface must expose Choose/New and advertise expandable
-  controls/Command-comma with no file open. Do not replace outgoing text with
-  welcome before collapse. About is a native sheet parented at the panel's level;
+  behavior. With no selected file, reveal the regular editable untitled notepad
+  with Open/Save As and a visible unsaved-loss warning. Retain its RAM-only draft
+  through hover dismissal; require Save/Discard/Cancel before replacement or quit.
+  Save As never overwrites an unopened existing file. Do not replace outgoing
+  content before collapse. About is a native sheet parented at the panel's level;
   sheet attachment derives from camera-safe geometry, never a fixed screen point.
 - Preserve the left resting wing shared contour and its asymmetric animation
   endpoints. Animation speed scales one whole transition clock, never hover

@@ -61,11 +61,12 @@ acceptance, not established by this controller check.
 ## Automated suite
 
 The settings task also requires `SETTINGS_POPUP_SMOKE_PASS`. It verifies that a
-no-file welcome surface exposes a visible chevron anchor, Command-comma stays
+no-file editable untitled surface exposes a visible chevron anchor, Command-comma stays
 wired through the application menu, interacting with the popup holds automatic
 dismissal, and opening/closing it retains the same editor, source, selection and
 native undo manager. Login mutations remain disabled in the isolated harness.
-Unit tests cover welcome/outgoing/error state and RAM-only popup snapshots.
+Unit tests cover untitled draft retention/discard, new-file adoption, existing-path
+refusal, save failures and RAM-only popup snapshots.
 Pure sheet-attachment tests cover notched/unnotched screens, negative/vertical
 display origins, and preserving a lower native attachment. A window-level policy
 test checks constants only; it does not create windows or establish live ordering.
@@ -169,9 +170,9 @@ These are not claimed as passed by unit tests or screenshots.
 | Hover delay preference | Set Hover to open to 0 ms, 50 ms, 500 ms and 1000 ms; close/reenter; quit/relaunch | Entry wait changes and persists; animation and 180 ms exit behavior do not change |
 | Accidental entry | At a nonzero delay, cross the trigger before its dwell completes | No editor; 0 ms intentionally skips the dwell filter |
 | Reentry suppression | Open, Escape with pointer still in trigger | Stays hidden until leave and reenter |
-| Alternative open | Reopen running Scribbit from Finder/Spotlight; expand chevron/use VoiceOver on gear | Surface opens with the same file or welcome state; no menu-bar status icon |
+| Alternative open | Reopen running Scribbit from Finder/Spotlight; expand chevron/use VoiceOver on gear | Surface opens with the same file or RAM-only untitled draft; no menu-bar status icon |
 | Bottom disclosure | Toggle chevron; inspect/copy path; click pin/preview; edit/undo/select before/after | Icon buttons, not checkboxes; selected appearance/accessible On/Off state; full path and gear inside section only; same native editor/source/history |
-| Footer branding | Inspect source/preview/welcome with disclosure collapsed/expanded, and closed-wing preference on/off | Small frog/Scribbit mark stays at bottom-left of open surface; centered chevron and Cmd-comma still work; 8-point gap above logo/control row; optional closed wing remains independent |
+| Footer branding | Inspect source/preview/untitled with disclosure collapsed/expanded, and closed-wing preference on/off | Small frog/Scribbit mark stays at bottom-left of open surface; centered chevron and Cmd-comma still work; 8-point gap above logo/control row; optional closed wing remains independent |
 | Settings popup | Gear when expanded; Cmd-comma when collapsed; move into popup, Escape, click outside | Popup has other preferences/actions but no pin/preview; visible chevron anchors collapsed keyboard path; Escape dismisses popup first |
 | About | Settings → About on current display; inspect icon/content and close | App icon, name/version and reachable Close only; sheet remains above note surface and below camera-safe top |
 | No-file settings | First launch/cancel selection, expand chevron or Cmd-comma | Choose/New, preferences and Quit reachable; no empty writable file substituted |
@@ -205,3 +206,39 @@ model/CPU, OS, build, idle CPU, resident memory, energy impact, and any growth o
 100 open/close cycles. Distinguish warm SwiftUI baseline from leaks. No recurring
 timer or idle I/O is expected, but numerical CPU/RAM budgets require actual
 measurements on the target Mac. The 3-second smoke interval alone is insufficient.
+
+## Untitled draft acceptance
+
+| Action | Expected result |
+| --- | --- |
+| Open with no selected file | Native editor is focused; Open/Save As and unsaved-loss warning are visible; no picker opens automatically |
+| Type, dismiss, hover open again | Draft, caret and viewport remain in RAM |
+| Cmd-S or Save As | Camera-safe native sheet asks for a new path; success adopts a file-backed note |
+| Save to existing path or inaccessible directory | Existing file is untouched; draft and visible error remain |
+| Open another file or quit with draft | Save As / Cancel / Discard sheet; Cancel preserves draft, including after cancelled Save As |
+| Quit with hidden draft | Surface is revealed before confirmation; no silent loss |
+| Force Quit / crash | RAM-only draft is not recoverable, as the visible warning states |
+
+These sheet ordering, focus and confirmation flows require opt-in manual GUI
+validation. Model/filesystem tests do not establish physical-notch usability.
+
+## First-time setup reset acceptance
+
+Focused RAM-only tests cover all five reset preference values, idempotence,
+file/draft identity and selection/viewport clearing, worker session clearing,
+refusal during an existing transaction, and no disk I/O in confirmed discard.
+Tests never reset standard defaults or register/unregister a real login item.
+
+| Manual action | Expected |
+| --- | --- |
+| About → Reset App → Cancel | Note, preferences and login unchanged |
+| Continue with dirty file or draft → Cancel | Text and current file selection remain |
+| Save / Save As fails or conflicts | Reset aborts, buffer/error remain visible |
+| Discard and confirm reset | Existing note file untouched; blank focused notepad, default settings and no selected file |
+| Reset from preview or with native undo history | Editor appears focused with empty history; Undo/Redo cannot restore discarded text |
+| Login unregister fails | Reset aborts without discarding unsaved text or preferences |
+| Reset with login enabled | Login disabled now; confirmation explains that the next real launch repeats first-launch registration |
+
+These flows are not simulated by the unit suite. Native sheet ordering, default
+button cancellation, login removal and actual first-launch behavior require
+explicitly approved manual validation with disposable preferences/notes.
