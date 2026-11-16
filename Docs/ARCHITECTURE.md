@@ -59,8 +59,11 @@ stateDiagram-v2
 5. Bytes, not size or mtime, determine a save conflict. No edited content is
    written when the baseline has changed.
 6. A clean close does not need to write, even if the file changed externally.
-7. Each open after close reads anew; no long-lived disk cache supplies text.
-8. Security-scoped access starts before file read and lasts through save/close.
+7. Each open after close asks the store for a snapshot. Production uses
+   `WatchedNoteStore`: one bounded RAM snapshot plus native observation and
+   conservative worker-side metadata validation. See File observation below.
+8. Security-scoped access starts before file read and remains active while
+   hidden for observation, until a successful file switch or termination.
 9. Save/reload/open operations are serialized and UI controls are disabled during
    them. Normal quit is asynchronous (`terminateLater`) and is acknowledged only
    after successful save. A request during an existing I/O transaction is refused;
@@ -75,7 +78,7 @@ stateDiagram-v2
     invalidations. See `NATIVE-EDITOR.md` for Unicode, composition and focus policy.
 13. An independent clip-view origin survives only when freshly read source matches
     the last displayed/saved source fingerprint. The file worker computes SHA-256;
-    hidden note contents are still released. Native layout restores/constrains the
+    the session/UI contents are released, while the store may retain its one cache snapshot. Native layout restores/constrains the
     viewport once, and focus must not force an intentionally offscreen caret into view.
 
 ## Reusable presentation boundary
@@ -132,7 +135,7 @@ The existing 180 ms delayed close and modal/pin/drag/save protections are unchan
 
 ## Persistence and transaction limits
 
-UTF-8 files are limited to 2 MiB. The reader checks size and then reads at most
+UTF-8 files are limited to 64 MiB. The reader checks size and then reads at most
 limit plus one byte to guard file growth between stat and read. All file-store
 operations run on the worker queue at user-initiated QoS, allowing the UI to show
 a progress overlay while cloud/file-provider coordination waits. There is no
@@ -193,7 +196,7 @@ continue to be released as before.
 Open and normal quit accept pending native composition, then ask Save As / Cancel /
 Discard for a nonempty draft, including when it was hidden. Cancelling preserves
 it. Save As uses a native sheet, creates a new UTF-8 file without overwriting,
-checks the existing 2 MiB bound, opens it through the serial worker and verifies
+checks the 64 MiB source bound, opens it through the serial worker and verifies
 its bytes still match the draft before adopting the file-backed session. Failure
 leaves the draft editable; if a file was created before a failed read-back, the
 error instructs the user to choose a new path. Subsequent file saves retain the
@@ -265,7 +268,7 @@ is part of reset.
 
 | Layer | Reset behavior |
 | --- | --- |
-| NoteSession | Explicit confirmed discard clears URL/source/baseline in memory, with no disk read/write |
+| NoteSession | Explicit confirmed discard clears URL/source/baseline and the store snapshot, cancels observations, with no disk read/write |
 | NoteModel | Clears note identity, dirty source, errors, selection, viewport and fingerprint; opens blank untitled mode |
 | AppSettings | Removes only noteBookmark, didOfferLogin, showNotchIndicator, animationSpeed and hoverDelay; never removes the defaults domain |
 | Controller | Releases scoped access, cancels pending hover tasks, resets hover/pin/preview state, restores animation/hover defaults and clears native undo history |
@@ -276,3 +279,53 @@ The first-launch login marker is reset too. Login is disabled immediately; like 
 fresh installation, the next actual app launch attempts automatic registration
 again. The reset confirmation states this explicitly. There is no user-note file
 delete operation, hidden database or external reset command.
+
+## File observation and hidden snapshot cache
+
+Production constructs NoteSession with WatchedNoteStore wrapping DiskNoteStore.
+NoteSession remains UI-independent and clears its editable text/baseline on close.
+The store retains at most one selected-file Data snapshot, allocated on demand up
+to the same 64 MiB UTF-8 acceptance limit; switching paths drops the old snapshot.
+This is not a total process-memory limit: decoded strings, editor layout, undo,
+preview, temporary read buffers and hashing can use substantially more memory.
+There is no performance claim for interactive editing/preview at the ceiling.
+
+The store observes the file and parent directory with native DispatchSource
+file-system sources. Both must start successfully before a snapshot is reusable.
+File/parent events invalidate it without reading or updating any visible editor.
+Directory observation covers atomic replacements, deletion and recreation. On
+the next read miss, observation is reattached to the current path. Failed reads
+never become empty snapshots. Watcher failure falls back to normal disk reads.
+Sources own O_EVTONLY descriptors, closed by their cancellation handlers; events
+run on a utility queue, with a lock protecting only cache state. There is no
+polling timer, subprocess, third-party watcher dependency or background reread.
+
+Before reusing a snapshot, the existing file worker stats the path and compares
+device/inode, size, and nanosecond modification/change timestamps. A miss uses
+normal coordinated bounded reading; it caches only if metadata and the event
+generation remain stable across the read. This is deliberately conservative,
+not exact-byte freshness proof: native notification delivery is asynchronous,
+and metadata cannot rule out every concurrent/non-cooperating writer race.
+The original instant-of-reopen fresh-read policy is therefore replaced with
+event invalidation plus metadata fallback, as approved.
+
+Explicit reload bypasses the snapshot. Saves invalidate it and always delegate
+to DiskNoteStore's coordinated exact-byte comparison and atomic replacement.
+The first reopening after a dirty save rereads; unchanged subsequent reopenings
+can reuse the snapshot. A successful save is not optimistically published as
+a cache entry, which would risk associating our bytes with a raced writer's
+post-save metadata. Clean close can reuse a valid snapshot. No watcher event
+automatically replaces visible text, even when it appears unedited.
+
+Security-scoped access stays active for the selected hidden note; a successful
+file switch balances the previous scope, and termination balances the last.
+Confirmed Reset App clears the store snapshot and cancels both observations on
+the file worker before the controller releases the security-scoped resource.
+Untitled drafts do not start file observation; successful Save As opens the new
+file through the same store and balances any previously retained selection scope.
+Bookmark resolution still runs on reopening and handles moved selections.
+Selection/viewport restoration retains its existing independent fingerprint check.
+
+Platform references: Apple's Dispatch Sources section of the Concurrency
+Programming Guide documents asynchronous/coalesced event delivery and descriptor
+lifecycle. See Docs/REFERENCE.md for links.

@@ -69,13 +69,13 @@ Expand the bottom chevron for the settings gear, or press **Cmd-,** directly.
 There is no persistent menu-bar icon. Hover to reopen the
 surface, or reopen Scribbit from Finder/Spotlight while it is running.
 The selection must be a regular UTF-8 text/Markdown file no
-larger than **2 MiB**. Extensions are not enforced. RTF, Word, PDF, and non-UTF-8
+larger than **64 MiB**. Extensions are not enforced. RTF, Word, PDF, and non-UTF-8
 encodings are deliberately unsupported. Selecting a symlink edits its resolved
 target, not the symlink itself. Create does not truncate an existing file.
 
 | Interaction | Result |
 | --- | --- |
-| Hover over notch/top-center strip for the configured delay | Fresh disk read, then editor opens below the camera; default 100 ms |
+| Hover over notch/top-center strip for the configured delay | Validated note snapshot, then editor opens below the camera; default 100 ms |
 | Reopen Scribbit from Finder / Spotlight | Opens the working surface without requiring a menu-bar icon |
 | Choose Note File… / Cmd-O | Saves the current note first, then selects another file |
 | Done / Cmd-Return / Escape / Cmd-W | Saves dirty content, then hides |
@@ -175,10 +175,13 @@ To uninstall, disable Launch at Login first, quit, and delete the app.
 - Untitled drafts are RAM-only and survive ordinary dismissal, but not process
   exit, Force Quit or a crash. **Cmd-S** opens Save As; normal quit asks before
   discarding nonempty text.
-- Each hidden-to-open transition rereads the selected file; an already-visible
-  editor is never silently reloaded. The editor remains unavailable until read
-  succeeds. A failed read never replaces the selected file with empty text;
-  recovery can show a separate, clearly labeled untitled draft with the error.
+- Reopening uses one bounded RAM snapshot when file/parent observation and
+  identity, size and timestamp checks permit it; otherwise it reads from disk.
+  Native change notifications invalidate the snapshot without polling or silently
+  reloading a visible editor. Explicit Reload always reads from disk. Event
+  delivery is asynchronous, so this is not an instantaneous freshness guarantee.
+  A failed read never replaces the selected file with empty text; recovery can
+  show a separate, clearly labeled untitled draft with the error.
 - Dirty content is compared with the exact bytes read at open/last save, inside
   `NSFileCoordinator`, then written atomically. Read and write transactions use
   a dedicated serial worker, not the UI thread. Controls freeze during I/O.
@@ -187,6 +190,10 @@ To uninstall, disable Launch at Login first, quit, and delete the app.
   Disk…** to explicitly discard it after confirmation. A clean close never writes.
 - Save a Copy exports the current buffer; it does not switch files, resolve the
   original conflict, or hide the editor. A failed reload preserves your edits.
+- One selected-note snapshot may remain in RAM while hidden, bounded by the
+  64 MiB source limit. This is not a total memory budget or a responsiveness
+  guarantee: native editor layout, undo and preview can use substantially more.
+  Selected-file access stays active for watching until file switch or quit.
 - There is **no autosave journal or hidden note database**. Force Quit, a crash,
   power loss, and forced shutdown can lose unsaved edits. Use Cmd-S for long edits.
 - Coordination protects against participating macOS apps, not all possible
@@ -205,14 +212,16 @@ headings, task lists, tables, images, HTML, and fenced code blocks have no speci
 layout. No remote images are fetched. Switching preview modes recreates the text
 view and resets its native undo history; saving does not reset it.
 
-Idle behavior is event-driven: no recurring timers, disk watchers, polling loops,
-network requests, or Markdown parsing while hidden. Finite cancellable work items
-exist only during hover entry/exit and a transition. Core Animation morphs a mask
+Idle behavior is event-driven: no recurring timers, polling loops, network
+requests, or Markdown parsing while hidden. Native file/parent observations
+invalidate the selected-note RAM snapshot without background rereads. Finite
+cancellable work items handle hover entry/exit and transitions. Core Animation morphs a mask
 inside a fixed window; the editor is not relaid out on every frame. Screen layouts
 update on display-change
 notifications. Rendering is native AppKit/SwiftUI. Resource claims are design
 properties, not a universal measured CPU/RAM guarantee; see the test report and
-manual profiling instructions.
+manual profiling instructions. The [file-watching benchmark](Docs/FILE-WATCHING-PERFORMANCE.md)
+compares warm core/storage paths, not whole-app UI performance.
 
 ## Privacy
 

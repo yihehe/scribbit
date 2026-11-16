@@ -32,8 +32,13 @@
   file coordination or reads/writes on the UI thread.
 - Never hide or terminate normally after a failed save. Show errors and keep the
   buffer. Never substitute an empty file after read failure.
-- A fresh disk read is required for every file-backed hidden-to-open transition. Do not
-  silently reload a visible editor or discard its edits.
+- Reopening uses the selected-note RAM snapshot only while native file/parent
+  observation and worker-side identity/size/mtime/ctime checks permit it. Invalidate
+  on events, explicit reload and save; reread conservatively on uncertainty. Never
+  silently reload a visible editor or discard edits. The UTF-8 source/cache limit
+  is 64 MiB, allocated on demand, not a process-memory or responsiveness promise.
+  Confirmed Reset App must clear the cache and cancel its observations on the
+  worker before the controller releases selected-file security-scoped access.
 - Keep exact-byte conflict detection and atomic replacement inside coordinated
   access. Do not claim it prevents races with non-cooperating writers.
 - Preserve the top-attached silhouette, fixed-window Core Animation mask, Reduce
@@ -96,8 +101,8 @@
   must focus the native editor at the restored selection without a click.
 - Preserve cursor and viewport independently. Capture scroll position before
   close and preview teardown; restore it once during native layout only for the
-  same source/file. Compare worker-computed SHA-256 fingerprints without retaining
-  hidden note text. Changed source falls back to showing the clamped cursor.
+  same source/file. Compare worker-computed SHA-256 fingerprints independently of the
+  bounded hidden store cache. Changed source falls back to showing the clamped cursor.
   Focus must not undo viewport restoration; do not add a scroll lock or polling.
 - No polling timers, networking, global keyboard monitors, Accessibility prompts,
   or watchers just to implement notch hover. Preserve cancellation/reentry logic.
@@ -109,7 +114,8 @@
   Keep it independent of exit/animation clocks. Delay changes may restart pending
   work but must not reset `HoverGate` or close-until-exit suppression.
   The slider lives in the settings popup. Isolated settings remain RAM-only.
-- File pickers and alerts inhibit automatic close. Always balance scoped access.
+- File pickers and alerts inhibit automatic close. Retain selected-file scoped
+  access while hidden for observation; balance it on successful switch/termination.
 - Prefer changes with deterministic unit/integration tests for credible behavior.
   Keep GUI/login acceptance separate from mocked or core test results.
 - Use author-scoped branch names when creating branches.

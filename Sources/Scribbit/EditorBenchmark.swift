@@ -47,7 +47,7 @@ final class EditorBenchmarkDelegate: NSObject, NSApplicationDelegate {
     private func run() async throws {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let small = output.appendingPathComponent("small.md")
-        let large = output.appendingPathComponent("boundary-2MiB.md")
+        let large = output.appendingPathComponent("boundary-64MiB.md")
         let smallSource = String(repeating: "- A small benchmark note.\n", count: 80)
         let line = "  - Benchmark words with a tab\tand value.\n"
         let largeData = Data(String(repeating: line, count: DiskNoteStore.maximumBytes / line.utf8.count + 1).utf8).prefix(DiskNoteStore.maximumBytes)

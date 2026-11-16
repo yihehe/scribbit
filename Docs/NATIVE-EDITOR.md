@@ -101,8 +101,10 @@ scroll observer, per-scroll document scan, polling, or published SwiftUI update.
 
 On successful close the existing serial file worker computes a SHA-256 fingerprint
 of the displayed/saved UTF-8 source using Apple's CryptoKit. Only this 32-byte
-fingerprint, selection and scroll origin survive hidden source release. Each open
-still reads disk and fingerprints that fresh source on the worker. Matching file
+fingerprint, selection and scroll origin survive session/UI source release.
+The production store separately retains its bounded watcher-validated snapshot. Each open
+fingerprints the validated store snapshot on the worker; explicit reload bypasses
+the store cache. Matching file
 URL and fingerprint permit viewport restoration; changed bytes, a different file,
 or a new app instance discard it. Same-length external edits and canonically equal
 but byte-different Unicode also invalidate it. Failed operations keep the existing
@@ -120,7 +122,7 @@ semantic line anchor. Read-only Markdown preview has no separate saved viewport.
 flowchart LR
     Native[Native selection / committed edit] --> Position[One RAM range in model]
     Close[Successful close] --> Release[Release hidden source only]
-    Open[Open / explicit reload] --> Disk[Fresh disk source]
+    Open[Open / explicit reload] --> Disk[Validated store snapshot / explicit disk reload]
     Disk --> Clamp[Clamp range to UTF-16 character boundaries]
     Position --> Clamp
     Clamp --> Restore[Restore native selection]

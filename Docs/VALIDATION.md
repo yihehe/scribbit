@@ -417,3 +417,64 @@ explains that the next real launch repeats first-launch automatic registration.
 | Reset-specific tests | RAM preference defaults/idempotence, worker/model file and hidden-draft reset, selection/viewport clear, busy refusal and no store I/O on discard |
 | Production reset, real defaults or login mutation | Not run |
 | GUI confirmation/cancel/failure ordering and focus | Not run; manual acceptance remains required |
+
+## Selected-file watching and 64 MiB source acceptance
+
+Supersedes earlier statements about fresh reads on every reopen and no hidden
+cache. Production now uses one on-demand RAM snapshot, invalidated by native
+file/parent observation, saves and explicit reload, with worker-side metadata
+fallback. Session/UI closed buffers still clear. The source acceptance limit is
+64 MiB, not total process memory. See ARCHITECTURE.md for consistency tradeoffs.
+
+- Initial sandboxed test run: filesystem coordination failed with Cocoa error
+  256 in existing and new tests. Coordination was not bypassed.
+- Approved host-access Scripts/test.sh: final **111 tests in 14 suites passed**, including
+  native directory notification, external replacement/deletion/recreation, cache
+  reuse/reload, successful-save invalidation, preservation of visible unsaved
+  edits, conflict safety, and actual 64 MiB read/successful-save/oversized-save
+  bounds. Log: build/file-watching-tests-final.log.
+- Scripts/build-app.sh: fresh release build and ad-hoc signature succeeded.
+  Log: build/file-watching-build-final.log. An earlier build correctly rejected
+  a concurrent source edit; this result is from a separate completed rerun.
+- Git diff whitespace validation passed.
+- No app launch, GUI tests, preferences, real notes, login, install, commit or push.
+- Native editor/undo/preview latency and whole-app memory at 64 MiB remain manual
+  and unverified. No claim of smooth editing at the source limit.
+
+### Rebase onto remote main — November 16, 2026
+
+| Check | Evidence / result |
+| --- | --- |
+| Latest fetched origin/main | aee065a, including README demo, dismissal tuning, persistent footer frog, untitled drafts and first-time reset |
+| Rebase integration | Preserved merged features and documentation; production model still uses the watched store while untitled drafts remain separate |
+| Reset lifecycle | Clears hidden store snapshot and cancels file/parent observation on worker before controller releases scoped access; no note read/write/delete |
+| Untitled Save As | Opens through normal store path; balances any previously retained selected-file scope on success |
+| Approved host filesystem/unit suite | **123 tests in 15 suites passed**; build/file-watching-rebased-tests.log |
+| Fresh signed candidate | **Build and strict signature verification passed**; build/file-watching-rebased/Scribbit.app and build/file-watching-rebased-build.log |
+| Whitespace | git diff --check passed |
+| GUI / launch | No GUI tests or reset exercised; candidate handed to parent for authorized normal app relaunch |
+| Remote mutation | No push or release publication |
+
+64 MiB native editing/undo/preview responsiveness and whole-app memory remain
+unverified; passing storage boundaries is not a GUI performance measurement.
+
+### Selected-file cache core benchmark — November 16, 2026
+
+The [performance report](FILE-WATCHING-PERFORMANCE.md) records reproduction,
+environment, complete paired timing tables, backing read counts, process CPU/RSS
+and important limitations. Production storage/cache/save code was unchanged.
+
+| Check | Result |
+| --- | --- |
+| Optimized harness | swiftc -O against production core sources; no GUI/app launch |
+| Deterministic self-test | Percentile math, fixture bytes, cache reuse, save and external replacement contracts passed |
+| Completed measurement | 96 unique cells across six sizes, two layers, four workloads and two store modes |
+| Result checks | Sample/result shape and backing read-count bounds passed; all measured source SHA-256 hashes match current files |
+| Fixture cleanup | Final-run private per-cell temporary directories were removed automatically |
+| Static checks | Shell syntax, Python AST and git diff --check passed |
+| Production source diff | Empty; no cache/save optimization added during benchmarking |
+| Whole-app GUI / energy / cold disk | Not measured; existing app was left untouched |
+| Commit / push | Not requested or performed for the benchmark work |
+
+Raw final artifacts remain ignored below build/file-watching-benchmarks-final;
+the durable report contains the results without committing generated outputs.
