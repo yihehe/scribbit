@@ -3,6 +3,13 @@
 A lightweight macOS notepad tucked into your notch. Hover to capture a thought,
 then get back to work. Plain-text files, Markdown preview, and no cloud required.
 
+![Rendered preview of Scribbit opening from the notch, typing a short note, and closing](Docs/Images/scribbit-demo.gif)
+
+*Rendered workflow preview using Scribbit's geometry, motion profile, and frog
+artwork, with the optional resting-notch indicator enabled and proposed
+open-footer branding. Sample text and pointer are illustrative.
+[View the still image](Docs/Images/scribbit-demo.png).*
+
 **Status:** Development builds / build from source (version 0.5.2). No notarized download or universal
 binary is available yet. Editing uses Apple's NSTextView with a small
 Shift-Tab command; there are no third-party runtime packages.
@@ -205,6 +212,7 @@ migrated, deleted or rewritten. Quit any other build before opening this one.
 
 ## Project guide
 
+- [README demo source and reproduction](Docs/README-DEMO.md)
 - [Frog branding and editable SVG sources](Docs/BRANDING.md)
 - [Native editor and Shift-Tab design](Docs/NATIVE-EDITOR.md)
 - [Notch UX, matching profile, and animation limitations](Docs/NOTCH-UX.md)
