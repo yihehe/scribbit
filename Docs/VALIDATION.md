@@ -1,5 +1,29 @@
 # Validation record
 
+## README rendered demo — November 16, 2026
+
+Added a README GIF and still-image alternative, generated offscreen from current
+shared geometry/motion/default-hover sources and disposable sample text.
+
+| Check | Result |
+| --- | --- |
+| Renderer execution / reproduction | Passed twice with byte-identical GIF and PNG outputs on this host |
+| GIF contract | 138 frames, 800×560, 6.90 seconds, 20 FPS, infinite loop, 66,985 bytes; decoded timing/dimensions/loop and 4 MiB cap verified |
+| Script syntax / diff whitespace | Bash syntax and `git diff --check` passed |
+| Static visual inspection | Regenerated open poster and decoded first GIF frame inspected: actual frog-and-pencil asset in resting left wing and proposed open footer, wordmark, chevron, attached silhouette and caption |
+| Existing app suite | **104 tests in 13 suites passed**; `build/readme-demo/tests.log` |
+| Fresh signed release build | Passed; `build/readme-demo/build.log`; candidate built but not launched |
+| Live UI / physical-notched display | Not exercised or claimed; this is a rendered fixture, not a recording |
+
+Reproduction and privacy boundaries are documented in [README demo](README-DEMO.md).
+No app source/runtime behavior or dependencies were changed.
+The footer-branding layout is explicitly marked proposed in the README caption;
+the independent no-file draft feature is not described as shipped. The optional
+resting-notch indicator is explicitly enabled in this demo, not claimed as the
+app default. Its shared geometry and asymmetric spring offset are used.
+Re-exported GIF and PNG were byte-identical across two runs after adding the frog; the PNG
+poster is 27,525 bytes.
+
 ## Automatic development downloads — November 15, 2026
 
 Added default-retention Actions artifacts for successful builds and a separate,
