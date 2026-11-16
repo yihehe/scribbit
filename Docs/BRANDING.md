@@ -4,6 +4,7 @@
 | --- | --- | --- |
 | Application | Curious Tilt: sage frog, ochre pencil, forest-green layered paper | Resources/AppIcon.icns |
 | Left notch wing | Chest Cross: pencil across the frog's body, smooth face | 14-point template, 1x/2x PNGs |
+| Open note footer | Same Chest Cross mark, with subtle Scribbit wordmark | Reuses cached 14-point template; always visible at bottom-left |
 | Reserved 18-point export | Same Chest Cross mark | 1x/2x PNGs retained as artwork; no current menu-bar item |
 
 Editable originals are `Resources/Branding/AppIcon.svg` and
@@ -20,8 +21,22 @@ available, but the app no longer creates a persistent menu-bar status item.
 There is no runtime SVG parser or new runtime dependency.
 
 The popup label is “Show frog beside notch”. The existing preference key
-and default-off behavior are unchanged. The wing geometry, hover target,
-animation, editor and file behavior are unchanged.
+and default-off behavior are unchanged. That preference controls only the closed
+notch wing, not the footer. The wing geometry, hover target, animation, editor
+and file behavior are unchanged.
+
+## Open-surface identity
+
+`NoteFooter` keeps the frog/pencil plus “Scribbit” in secondary monochrome at the
+bottom-left, even when information is collapsed. The mark identifies the app
+without a large watermark or another action button. It reuses the existing
+20-point footer row with 8 points of padding above the entire row, reserving
+28 points overall. This separates the logo from the editor/preview without
+making the controls themselves oversized. The centered native chevron retains
+its full-width target and settings anchor.
+The branding does not intercept pointer events or accept keyboard focus.
+It is present in editing, preview and welcome modes, outside their conditional
+content. No new asset, resource load, preference, timer or dependency is needed.
 
 ## Regenerating artwork
 

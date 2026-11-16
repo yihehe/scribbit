@@ -107,6 +107,13 @@ semaphore-controlled busy state without timing-dependent sleeps.
 | App metadata | Display/executable names, bundle identifier, accessory mode, minimum supported macOS |
 | Branding | App-icon ICNS decoding at required sizes; template flags, logical sizes, 1x/2x pixels, and nonempty transparency |
 
+`NoteFooterTests` hosts the footer offscreen, without creating a window. It checks
+the native disclosure's centered placement, 20-point control height within a
+28-point footer, accessible labels and action in both expansion states. A native
+editor layout fixture verifies the 8-point clearance and resulting viewport
+height. These tests create no windows or image captures. Existing control/editor smoke gates remain
+the checks for selection, undo and popup anchoring in a live shell.
+
 Animation-specific checks and the rendered fixture GIF are documented in `NOTCH-UX.md`.
 
 Hover-retention geometry tests cover both side margins, bottom/top boundaries,
@@ -164,6 +171,7 @@ These are not claimed as passed by unit tests or screenshots.
 | Reentry suppression | Open, Escape with pointer still in trigger | Stays hidden until leave and reenter |
 | Alternative open | Reopen running Scribbit from Finder/Spotlight; expand chevron/use VoiceOver on gear | Surface opens with the same file or welcome state; no menu-bar status icon |
 | Bottom disclosure | Toggle chevron; inspect/copy path; click pin/preview; edit/undo/select before/after | Icon buttons, not checkboxes; selected appearance/accessible On/Off state; full path and gear inside section only; same native editor/source/history |
+| Footer branding | Inspect source/preview/welcome with disclosure collapsed/expanded, and closed-wing preference on/off | Small frog/Scribbit mark stays at bottom-left of open surface; centered chevron and Cmd-comma still work; 8-point gap above logo/control row; optional closed wing remains independent |
 | Settings popup | Gear when expanded; Cmd-comma when collapsed; move into popup, Escape, click outside | Popup has other preferences/actions but no pin/preview; visible chevron anchors collapsed keyboard path; Escape dismisses popup first |
 | About | Settings → About on current display; inspect icon/content and close | App icon, name/version and reachable Close only; sheet remains above note surface and below camera-safe top |
 | No-file settings | First launch/cancel selection, expand chevron or Cmd-comma | Choose/New, preferences and Quit reachable; no empty writable file substituted |

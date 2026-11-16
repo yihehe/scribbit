@@ -6,8 +6,8 @@ then get back to work. Plain-text files, Markdown preview, and no cloud required
 ![Rendered preview of Scribbit opening from the notch, typing a short note, and closing](Docs/Images/scribbit-demo.gif)
 
 *Rendered workflow preview using Scribbit's geometry, motion profile, and frog
-artwork, with the optional resting-notch indicator enabled and proposed
-open-footer branding. Sample text and pointer are illustrative.
+artwork, with the optional resting-notch indicator enabled and open-footer
+branding. Sample text and pointer are illustrative.
 [View the still image](Docs/Images/scribbit-demo.png).*
 
 **Status:** Development builds / build from source (version 0.5.2). No notarized download or universal
@@ -90,6 +90,12 @@ target, not the symlink itself. Create does not truncate an existing file.
 | Settings → Launch at Login | Enables/disables macOS Service Management registration |
 | Settings → Show frog beside notch | Optional frog-and-pencil mark inside a black extension connected to the camera; off by default |
 
+The open note keeps a small frog-and-pencil **Scribbit** mark at bottom-left,
+including when the information section is collapsed. It shares the existing
+footer row with the centered chevron, with a little breathing room above; it is
+branding, not another button.
+The optional closed-notch frog remains a separate setting.
+
 A hover-opened note collapses 180 ms after the pointer leaves; moving back cancels
 that dismissal. Expand the chevron and enable **Pin note open** to keep it open while writing. An explicitly opened
 note does not close merely because the pointer is elsewhere. Both hover and
@@ -110,7 +116,8 @@ icon buttons, and the settings gear live in a bottom disclosure that starts clos
 Filled/tinted button state shows the active editing modes; their accessible
 names, On/Off state, and help text remain available.
 Long paths use two lines/middle truncation and expose the complete path as help
-and accessible text. The collapsed footer contains only a chevron. File actions,
+and accessible text. The collapsed footer keeps the frog/Scribbit mark and
+centered chevron visible. File actions,
 login, indicator, animation speed, hover delay, About, and Quit live in the native transient popup.
 Opening it inhibits automatic note dismissal while interacting with settings.
 Escape first dismisses settings, then a second Escape saves and closes the note.
