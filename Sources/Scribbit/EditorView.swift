@@ -6,26 +6,39 @@ struct NoteView: View {
     @ObservedObject var model: NoteModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let choose: () -> Void
-    let close: () -> Void
     let saveCopy: () -> Void
     let reload: () -> Void
-    var speedChanged: (Double) -> Void = { _ in }
-    var hoverDelayChanged: (Double) -> Void = { _ in }
+    var create: () -> Void = {}
+    var showSettings: (NSButton) -> Void = { _ in }
 
     var body: some View {
         VStack(spacing: 0) {
-            if model.preview {
+            if model.showsWelcome {
+                VStack(spacing: 12) {
+                    Image(nsImage: BrandAssets.notch).font(.largeTitle)
+                    Text("A quiet place for your next thought.").font(.headline)
+                    Text("Choose a UTF-8 text or Markdown file to start writing.")
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Button("Choose File…", action: choose)
+                        Button("New File…", action: create)
+                    }
+                    Text("Expand the chevron for file controls, or press ⌘, for Settings.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity).padding(20)
+            } else if model.preview {
                 ScrollView {
                     Text((try? AttributedString(markdown: model.text,
                         options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(model.text))
                         .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(18)
-                }
+                }.disabled(!model.isOpen)
             } else {
                 NativeEditor(text: $model.text, selection: model.editorSelection,
                              selectionRevision: model.selectionRevision,
                              selectionChanged: model.rememberEditorSelection,
                              scrollOrigin: model.editorScrollOrigin,
                              scrollChanged: model.rememberEditorScrollOrigin)
+                    .disabled(!model.isOpen)
             }
             // Recovery never lives inside a collapsed disclosure.
             if let error = model.error {
@@ -33,80 +46,105 @@ struct NoteView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .font(.callout).foregroundStyle(.red).textSelection(.enabled)
-                    HStack {
-                        Button("Retry Save") { Task { await model.save() } }
-                        Button("Save a Copy…", action: saveCopy)
-                        Button("Reload from Disk…", action: reload)
+                    if model.isOpen {
+                        HStack {
+                            Button("Retry Save") { Task { await model.save() } }
+                            Button("Save a Copy…", action: saveCopy)
+                            Button("Reload from Disk…", action: reload)
+                        }
+                    } else {
+                        Button("Choose Another File…", action: choose)
                     }
                 }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
             }
             if model.controlsExpanded {
                 Divider()
-                VStack(spacing: 10) {
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(model.filename).font(.headline).lineLimit(1)
-                            Text(model.isDirty ? "Unsaved edits · saves when closed" : "File-backed note")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button { model.pinned.toggle() } label: {
-                            Image(systemName: model.pinned ? "pin.fill" : "pin")
-                        }.help(model.pinned ? "Unpin: close when pointer leaves" : "Pin note open")
-                        Button(action: choose) { Image(systemName: "folder") }.help("Choose another file")
-                        Button { model.preview.toggle() } label: {
-                            Image(systemName: model.preview ? "pencil" : "eye")
-                        }.help(model.preview ? "Edit source" : "Preview Markdown")
-                        Button("Done", action: close)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(model.filename).font(.headline).lineLimit(1)
+                    if let url = model.url {
+                        Text(url.path)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                            .help(url.path)
+                            .accessibilityLabel("File path: \(url.path)")
+                            .accessibilityIdentifier("noteFilePath")
                     }
-                    HStack(spacing: 10) {
-                        Text("Animation speed").font(.caption)
-                        Slider(value: Binding(get: { model.animationSpeed }, set: { value in
-                            model.animationSpeed = AnimationSpeed.normalized(value)
-                            speedChanged(model.animationSpeed)
-                        }), in: AnimationSpeed.range, step: 0.25)
-                            .accessibilityLabel("Animation speed")
-                        Text(AnimationSpeed.label(model.animationSpeed))
-                            .font(.caption.monospacedDigit()).frame(width: 34, alignment: .trailing)
-                    }
-                    HStack(spacing: 10) {
-                        Text("Hover to open").font(.caption)
-                        Slider(value: Binding(get: { model.hoverDelay }, set: { value in
-                            hoverDelayChanged(HoverDelay.normalized(value))
-                        }), in: HoverDelay.range, step: HoverDelay.step)
-                            .accessibilityLabel("Hover delay before opening")
-                            .accessibilityIdentifier("hoverDelaySlider")
-                        Text(HoverDelay.label(model.hoverDelay))
-                            .font(.caption.monospacedDigit()).frame(width: 62, alignment: .trailing)
-                    }
+                    Text(model.isOpen
+                        ? (model.isDirty ? "Unsaved edits · saves when closed" : "File-backed note")
+                        : "No note open")
+                        .font(.caption).foregroundStyle(.secondary)
                     HStack {
                         Text(model.preview ? "Read-only preview · inline Markdown" : "UTF-8 · ⌘S to save")
                         Spacer()
                         Text("Esc / ⌘↵ to close")
                     }.font(.caption).foregroundStyle(.secondary)
+                    HStack(spacing: 14) {
+                        Group {
+                            EditorModeButton(isOn: $model.pinned,
+                                symbol: model.pinned ? "pin.fill" : "pin",
+                                label: "Pin note open",
+                                help: model.pinned ? "Unpin: close when pointer leaves" : "Pin note open",
+                                identifier: "pinNote")
+                            EditorModeButton(isOn: $model.preview,
+                                symbol: model.preview ? "pencil" : "eye",
+                                label: "Markdown preview",
+                                help: model.preview ? "Edit plain-text source" : "Preview Markdown",
+                                identifier: "previewMarkdown")
+                        }.disabled(!model.isOpen)
+                        Spacer()
+                        NotchControlButton(symbol: "gearshape", identifier: "openSettings",
+                            label: "Open Scribbit settings", help: "Settings (⌘,)",
+                            action: showSettings)
+                            .frame(width: 28, height: 22)
+                    }
                 }.padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 4)
-                .accessibilityIdentifier("noteControls")
+                .accessibilityIdentifier("noteInformation")
             }
-            Button {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: AnimationSpeed.duration(0.16, rate: model.animationSpeed))) {
-                    model.controlsExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 5) {
-                    if model.pinned { Image(systemName: "pin.fill").font(.system(size: 8)) }
-                    Image(systemName: model.controlsExpanded ? "chevron.down" : "chevron.up")
-                        .font(.system(size: 10, weight: .semibold))
-                }.foregroundStyle(.secondary).frame(maxWidth: .infinity).frame(height: 20)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(model.controlsExpanded ? "Hide note controls" : "Show note controls")
-            .accessibilityLabel(model.controlsExpanded ? "Hide note controls" : "Show note controls")
-            .accessibilityIdentifier("toggleNoteControls")
+            NotchControlButton(
+                symbol: model.controlsExpanded ? "chevron.down" : "chevron.up",
+                identifier: "toggleNoteInformation",
+                label: model.controlsExpanded ? "Hide note information and controls" : "Show note information and controls",
+                help: "Expand for file path, pin, preview, and settings. Settings shortcut: ⌘,",
+                action: { _ in
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: AnimationSpeed.duration(0.16, rate: model.animationSpeed))) {
+                        model.controlsExpanded.toggle()
+                    }
+                })
+                .frame(maxWidth: .infinity).frame(height: 20)
         }
-        .disabled(model.isBusy || !model.isOpen)
+        .disabled(model.isBusy)
         .overlay { if model.isBusy { ProgressView("Updating file…").padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)) } }
         .background(Color(white: 0.035))
+    }
+}
+
+/// Editing modes are toolbar-style icon buttons, not preference checkboxes.
+private struct EditorModeButton: View {
+    @Binding var isOn: Bool
+    let symbol: String
+    let label: String
+    let help: String
+    let identifier: String
+
+    var body: some View {
+        Button { isOn.toggle() } label: {
+            Image(systemName: symbol)
+                .frame(width: 28, height: 24)
+                .foregroundStyle(isOn ? Color.accentColor : Color.secondary)
+                .background(isOn ? Color.accentColor.opacity(0.18) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 5))
+                .overlay(RoundedRectangle(cornerRadius: 5)
+                    .stroke(isOn ? Color.accentColor.opacity(0.6) : Color.clear, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(label)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityIdentifier(identifier)
     }
 }
 

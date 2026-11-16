@@ -51,6 +51,16 @@ acceptance, not established by this controller check.
 
 ## Automated suite
 
+The settings task also requires `SETTINGS_POPUP_SMOKE_PASS`. It verifies that a
+no-file welcome surface exposes a visible chevron anchor, Command-comma stays
+wired through the application menu, interacting with the popup holds automatic
+dismissal, and opening/closing it retains the same editor, source, selection and
+native undo manager. Login mutations remain disabled in the isolated harness.
+Unit tests cover welcome/outgoing/error state and RAM-only popup snapshots.
+Pure sheet-attachment tests cover notched/unnotched screens, negative/vertical
+display origins, and preserving a lower native attachment. A window-level policy
+test checks constants only; it does not create windows or establish live ordering.
+
 ```sh
 /bin/bash Tests/Scripts/test-runner.sh
 Scripts/test.sh
@@ -137,9 +147,12 @@ These are not claimed as passed by unit tests or screenshots.
 | Hover delay preference | Set Hover to open to 0 ms, 50 ms, 500 ms and 1000 ms; close/reenter; quit/relaunch | Entry wait changes and persists; animation and 180 ms exit behavior do not change |
 | Accidental entry | At a nonzero delay, cross the trigger before its dwell completes | No editor; 0 ms intentionally skips the dwell filter |
 | Reentry suppression | Open, Escape with pointer still in trigger | Stays hidden until leave and reenter |
-| Alternative open | Use menu-bar Open Note / VoiceOver | Same selected file opens |
-| Bottom disclosure | Toggle using chevron and Cmd-,; edit/undo/select before and after | Default collapsed, no top header, same source/selection/undo, viewport restored on collapse |
-| Animation speed | Use slider/menu at 0.5×, 1×, 2×; quit/reopen; try Reduce Motion | Rate persists, shape/content stay synchronized, Reduce Motion remains short fade |
+| Alternative open | Reopen running Scribbit from Finder/Spotlight; expand chevron/use VoiceOver on gear | Surface opens with the same file or welcome state; no menu-bar status icon |
+| Bottom disclosure | Toggle chevron; inspect/copy path; click pin/preview; edit/undo/select before/after | Icon buttons, not checkboxes; selected appearance/accessible On/Off state; full path and gear inside section only; same native editor/source/history |
+| Settings popup | Gear when expanded; Cmd-comma when collapsed; move into popup, Escape, click outside | Popup has other preferences/actions but no pin/preview; visible chevron anchors collapsed keyboard path; Escape dismisses popup first |
+| About | Settings → About on current display; inspect icon/content and close | App icon, name/version and reachable Close only; sheet remains above note surface and below camera-safe top |
+| No-file settings | First launch/cancel selection, expand chevron or Cmd-comma | Choose/New, preferences and Quit reachable; no empty writable file substituted |
+| Animation speed | Use popup slider at 0.5×, 1×, 2×; quit/reopen; try Reduce Motion | Rate persists, shape/content stay synchronized, Reduce Motion remains short fade |
 | Native editing | Select, undo/redo, Cmd-F, paste, non-Latin IME, emoji | Correct source and focus, find bar usable |
 | Hover exit / pin | Open via hover, leave, reenter within 180 ms, then pin and leave | Reentry cancels; unpinned exit saves/collapses; pin holds surface |
 | Close paths | Edit distinct marker and try Done, Escape, Cmd-W, outside click, switch app, normal Quit separately | Marker saved on every path |

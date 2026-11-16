@@ -5,7 +5,8 @@ import AppKit
 struct EditorProbe {
     let view: NSTextView
     static func find(in root: NSView) -> EditorProbe? {
-        if let native = root as? NSTextView, !native.isFieldEditor { return EditorProbe(view: native) }
+        // Selectable file paths/error labels are not the source editor.
+        if let native = root as? NoteTextView { return EditorProbe(view: native) }
         return root.subviews.compactMap { find(in: $0) }.first
     }
     var string: String { view.string }

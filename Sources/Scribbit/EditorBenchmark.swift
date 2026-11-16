@@ -59,7 +59,7 @@ final class EditorBenchmarkDelegate: NSObject, NSApplicationDelegate {
         guard await model.open(small) else { throw CocoaError(.fileReadUnknown) }
         let panel = NotePanel(contentRect: CGRect(x: 180, y: 180, width: 620, height: 460), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isReleasedWhenClosed = false
-        let host = NSHostingView(rootView: NoteView(model: model, choose: {}, close: {}, saveCopy: {}, reload: {}))
+        let host = NSHostingView(rootView: NoteView(model: model, choose: {}, saveCopy: {}, reload: {}))
         panel.contentView = host
         panel.orderFrontRegardless()
         _ = try await settle(host, text: smallSource)

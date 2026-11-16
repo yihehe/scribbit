@@ -21,6 +21,12 @@ physical camera cutout. See [geometry and lifecycle](ARCHITECTURE.md).
 
 - [NSPanel](https://developer.apple.com/documentation/appkit/nspanel) hosts the
   editor without turning it into a normal document window.
+- [NSPopover](https://developer.apple.com/documentation/appkit/nspopover) presents
+  transient settings anchored to native expanded gear/collapsed chevron controls,
+  without a status item.
+- [NSAlert.beginSheetModal](https://developer.apple.com/documentation/appkit/nsalert/beginsheetmodal(for:completionhandler:))
+  parents About to the elevated note panel. The native window delegate's sheet
+  positioning callback supplies the camera-safe attachment rectangle.
 - [CAShapeLayer](https://developer.apple.com/documentation/quartzcore/cashapelayer)
   masks a fixed-size presentation window with the attached silhouette.
 - [CAKeyframeAnimation](https://developer.apple.com/documentation/quartzcore/cakeyframeanimation)

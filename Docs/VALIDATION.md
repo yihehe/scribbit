@@ -1,5 +1,37 @@
 # Validation record
 
+## Notch settings popup — November 15, 2026
+
+Replaced the persistent menu-bar item with a native settings popover. The bottom
+section keeps the selectable file path, Pin/Preview icon buttons, and settings
+gear; collapsed Command-comma uses the visible chevron as its native anchor.
+The popup holds automatic dismissal and Escape dismisses settings before the
+note. No-file startup has safe Choose/New/settings access. Native editing menu
+shortcuts and save-before-close protections remain.
+
+About is a minimal native sheet with the app icon, name, version and Close. It
+is parented to the note panel and attached below the geometry's camera-safe
+boundary, rather than using an unparented alert below the panel's window level.
+
+| Check | Result / ignored local evidence |
+| --- | --- |
+| Unit/filesystem/resource suite | **104 tests in 13 suites passed**; `build/settings-popup-polish/tests.log` |
+| Fresh release build and strict signature | Passed; `build/settings-popup-polish/build.log` |
+| Focused regressions | Welcome/outgoing-buffer safety, RAM popup state, About metadata, sheet geometry across screen origins and window-level policy |
+| Full GUI suite | **Not passed for this feature**: earlier attempts stopped in native Tab/Shift-Tab checks before reaching popup checks |
+| Visual/physical acceptance | Candidate launched with user approval; full live ordering, camera/display and input-method matrix not independently verified |
+
+Candidate: `build/settings-popup-polish/Scribbit.app`. The branch is based on
+main revision `3bc5e8e025a8dbf8eea5f55e59ea39c00c690e86`, including merged
+cursor/scroll and configurable-hover changes. The 0–1000 ms hover setting is
+preserved in settings. No new third-party package was added. Tests use project
+fixtures and RAM-only settings, not production preferences or login registration.
+
+Manual checks include selected-state Pin/Preview buttons, full selectable path,
+collapsed Command-comma, minimal About content/Close below the camera, popup
+hover hold/Escape behavior, and retained native selection, scrolling and history.
+Generic error/reload dialogs were not broadly converted to sheets by this change.
+
 ## Configurable hover opening delay — November 15, 2026
 
 Entry dwell defaults to **100 ms**, down from 250 ms. The bottom disclosure's

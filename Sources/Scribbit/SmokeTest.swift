@@ -72,7 +72,11 @@ final class SmokeTestDelegate: NSObject, NSApplicationDelegate {
         textView.breakUndoCoalescing()
         textView.doCommand(by: #selector(NSResponder.insertTab(_:)))
         await settle()
-        try require(model.text == original + "\t", "Tab no longer inserts a literal tab")
+        let suffixKinds = model.text.utf16.dropFirst(end).map { unit in
+            unit == 9 ? "tab" : unit == 32 ? "space" : unit == 10 ? "newline" : "other"
+        }
+        try require(model.text == original + "\t",
+                    "Tab no longer inserts a literal tab: suffixKinds=\(suffixKinds), nativeLength=\(textView.string.utf16.count), modelLength=\(model.text.utf16.count), expected=\(end + 1), editable=\(textView.isEditable), fieldEditor=\(textView.view.isFieldEditor), marked=\(textView.view.hasMarkedText()), responder=\(String(describing: textView.window?.firstResponder))")
         try await finishTypingEvent(textView)
         guard let backtab = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.shift],
             timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: textView.window?.windowNumber ?? 0,
@@ -145,7 +149,7 @@ final class SmokeTestDelegate: NSObject, NSApplicationDelegate {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         let hosted = NSHostingView(rootView: NoteView(model: model,
-            choose: {}, close: {}, saveCopy: {}, reload: {}))
+            choose: {}, saveCopy: {}, reload: {}))
         let presenter = NotchPresenter(panel: panel, content: hosted)
         let display = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
         let geometry = NotchGeometry(screen: display, cameraWidth: 184, topInset: 32)

@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | Application | Curious Tilt: sage frog, ochre pencil, forest-green layered paper | Resources/AppIcon.icns |
 | Left notch wing | Chest Cross: pencil across the frog's body, smooth face | 14-point template, 1x/2x PNGs |
-| Menu bar | Same Chest Cross mark | 18-point template, 1x/2x PNGs |
+| Reserved 18-point export | Same Chest Cross mark | 1x/2x PNGs retained as artwork; no current menu-bar item |
 
 Editable originals are `Resources/Branding/AppIcon.svg` and
 `Resources/Branding/FrogPencil.svg`. They contain vector paths, not embedded images.
@@ -15,10 +15,11 @@ the project owner.
 
 `BrandAssets` loads and caches two template NSImages using SwiftPM's resource
 bundle. Each contains separate 1x and 2x representations at the correct logical
-size. AppKit handles menu-bar appearance; the notch view explicitly tints white.
+size. The notch view explicitly tints white. The 18-point resource remains
+available, but the app no longer creates a persistent menu-bar status item.
 There is no runtime SVG parser or new runtime dependency.
 
-The menu label is “Show Frog in Left Notch Wing”. The existing preference key
+The popup label is “Show frog beside notch”. The existing preference key
 and default-off behavior are unchanged. The wing geometry, hover target,
 animation, editor and file behavior are unchanged.
 
@@ -47,5 +48,5 @@ This avoids SwiftPM's default app-root lookup, which conflicts with strict bundl
 signing, and prevents packaged apps silently falling back to build caches.
 Tests exercise resource lookup,
 template flags, logical/pixel sizes and nonempty transparency. The isolated GUI
-gate checks that the menu uses the branded resource. Actual menu-bar contrast
-and physical-notch optical acceptance still require a live user review.
+gate checks packaged resource lookup and the notch template. Physical-notch
+optical acceptance still requires a live user review.

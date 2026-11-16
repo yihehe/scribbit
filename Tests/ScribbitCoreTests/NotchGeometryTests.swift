@@ -19,6 +19,31 @@ final class NotchGeometryTests {
         expectEqual(g.panelFrame().maxY, 1080)
         expectEqual(g.screen.maxY - g.contentTop, 1048)
     }
+    @Test func testSheetAttachmentStaysBelowCameraAcrossDisplayOrigins() {
+        let screens: [(CGRect, CGFloat)] = [
+            (CGRect(x: 0, y: 0, width: 1512, height: 982), 32),
+            (CGRect(x: -1920, y: -100, width: 1920, height: 1080), 0),
+            (CGRect(x: 100, y: 900, width: 1512, height: 982), 40)
+        ]
+        for (screen, inset) in screens {
+            let geometry = NotchGeometry(screen: screen, cameraWidth: 184, topInset: inset)
+            let frame = geometry.panelFrame()
+            let proposed = CGRect(x: 12, y: frame.height, width: frame.width - 24, height: 0)
+            let attachment = geometry.sheetAttachmentRect(in: frame, proposed: proposed)
+            #expect(attachment.minY + frame.minY == screen.maxY - geometry.contentTop)
+            #expect(attachment.minY + frame.minY < screen.maxY - inset)
+            #expect(attachment.minX == proposed.minX && attachment.width == proposed.width)
+            #expect(attachment.height == 0)
+        }
+    }
+    @Test func testSheetAttachmentPreservesLowerNativeAttachmentAndClampsNegativeOffset() {
+        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 400, height: 300), cameraWidth: 100, topInset: 20)
+        let frame = geometry.panelFrame()
+        let lower = CGRect(x: 0, y: 100, width: frame.width, height: 8)
+        #expect(geometry.sheetAttachmentRect(in: frame, proposed: lower).minY == 100)
+        let offscreen = frame.offsetBy(dx: 0, dy: 1000)
+        #expect(geometry.sheetAttachmentRect(in: offscreen, proposed: lower).minY == 0)
+    }
     @Test func testSecondaryDisplayWithNegativeOrigin() {
         let g = NotchGeometry(screen: CGRect(x: -1920, y: -100, width: 1920, height: 1080), cameraWidth: 0, topInset: 0)
         expectEqual(g.trigger.midX, -960)

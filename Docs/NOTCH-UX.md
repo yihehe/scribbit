@@ -14,7 +14,7 @@ Changing the rate during motion only affects subsequent transitions.
 | Aspect | Implementation |
 | --- | --- |
 | Resting left wing | Optional 36-point pencil wing; one contour connects it to the cutout, with an offset-aware morph into/out of the editor |
-| Controls | Top header removed; file/actions/status/speed are in a bottom disclosure, collapsed each open. Only a 20-point chevron remains; errors stay visible |
+| Information and settings | Bottom disclosure contains file/full path, togglable pin/preview icon buttons, and settings gear. Collapsed footer contains only a chevron. Cmd-comma opens settings even when collapsed; no persistent menu-bar icon |
 | Attached surface | Black silhouette reaches the screen's top edge, concave shoulders and rounded bottom corners; content stays below the physical camera |
 | Width expansion | Perceptual duration 0.44 s, bounce 0.25 |
 | Height expansion | Perceptual duration 0.38 s, bounce 0.22 |
@@ -26,7 +26,8 @@ Changing the rate during motion only affects subsequent transitions.
 | Hover entry / exit | Configurable 0–1000 ms dwell in 50 ms steps, default 100 ms; fixed 180 ms exit delay; reentry cancels dismissal |
 | Focus | Menu and completed hover openings activate the panel and focus the editor at the restored selection; type without clicking |
 | Pin | Keeps the note open across pointer exit, outside clicks, and app deactivation; Done/Escape/normal quit still save and close |
-| Working-surface holds | Menus, dialogs, file I/O, and active pointer drags inhibit hover dismissal |
+| Working-surface holds | Settings popup, menus, dialogs, file I/O, and active pointer drags inhibit hover dismissal |
+| About | Native panel-parented sheet with app icon/name/version and Close only; at panel level, below camera-safe content boundary |
 | Accessibility | Reduce Motion uses a 140 ms fade, without the size spring or content growth |
 | Blur | No arrival blur or private filter discovery |
 | Scope | No haptics, glass, floating companion controls, mission-control detection, content switching, or dynamic-size motion retargeting |
@@ -104,5 +105,5 @@ same NSTextView, selection, undo stack, and source bytes, and returns the viewpo
 to its full collapsed height. It checks actual CA durations at 2× and 0.5×,
 in-flight speed stability, and Reduce Motion's independent fade. It also compares
 the first/last animation paths against the left resting wing's exact global frame.
-The slider/menu preference is tested with RAM-only settings; no production defaults
+The popup preference is tested with RAM-only settings; no production defaults
 or login registration is changed by testing.
