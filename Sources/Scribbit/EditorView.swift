@@ -103,17 +103,11 @@ struct NoteView: View {
                 }.padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 4)
                 .accessibilityIdentifier("noteInformation")
             }
-            NotchControlButton(
-                symbol: model.controlsExpanded ? "chevron.down" : "chevron.up",
-                identifier: "toggleNoteInformation",
-                label: model.controlsExpanded ? "Hide note information and controls" : "Show note information and controls",
-                help: "Expand for file path, pin, preview, and settings. Settings shortcut: ⌘,",
-                action: { _ in
-                    withAnimation(reduceMotion ? nil : .easeInOut(duration: AnimationSpeed.duration(0.16, rate: model.animationSpeed))) {
-                        model.controlsExpanded.toggle()
-                    }
-                })
-                .frame(maxWidth: .infinity).frame(height: 20)
+            NoteFooter(isExpanded: model.controlsExpanded) {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: AnimationSpeed.duration(0.16, rate: model.animationSpeed))) {
+                    model.controlsExpanded.toggle()
+                }
+            }
         }
         .disabled(model.isBusy)
         .overlay { if model.isBusy { ProgressView("Updating file…").padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)) } }

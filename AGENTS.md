@@ -45,8 +45,10 @@
   place, never in superseded callers after an await. Preserve generation guards
   and replacement-aware waits. The lifecycle GUI regressions protect this.
 - Keep file information/full selectable path, pin/preview, and the settings gear
-  inside the bottom disclosure, collapsed per open. The collapsed footer contains
-  only the chevron. Other preferences/file actions live in a native transient
+  inside the bottom disclosure, collapsed per open. The always-visible footer keeps
+  a small, noninteractive frog-and-Scribbit brand at left and the native chevron
+  centered in a 20-point row with 8 points of breathing room above it.
+  Other preferences/file actions live in a native transient
   popup; do not recreate a menu-bar NSStatusItem. Command-comma uses the visible
   chevron as a fallback anchor when the gear is collapsed, not a hidden anchor or
   delayed layout retry. Keep native NSApp.mainMenu responder/keyboard actions.

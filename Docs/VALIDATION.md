@@ -1,5 +1,33 @@
 # Validation record
 
+## Open-note footer identity — November 16, 2026
+
+Added a subtle frog/pencil plus Scribbit wordmark to the bottom-left of the open
+surface. It reuses the cached 14-point asset. Following user feedback, the
+20-point footer row now has 8 points of breathing room above it, reserving
+28 points total. The native centered disclosure/settings anchor and optional
+closed-wing setting are unchanged. No editor command, note lifecycle or
+preference was changed.
+
+| Check | Result / ignored local evidence |
+| --- | --- |
+| Rebased source | Based on latest fetched main `a549ca2`, including README demo and forgiving hover dismissal |
+| Final unit/filesystem/resource suite with approved coordination access | **109 tests in 14 suites passed**; `build/footer-branding-pr/tests.log` |
+| Windowless footer tests | Both expansion states preserve centered native disclosure, 20-point control height, 28-point total footer, accessible labels and working action; native editor layout verifies 8-point clearance with native pixel-rounding tolerance |
+| Separate signed release build | Passed; `build/footer-branding-pr/build.log`; candidate `build/footer-branding-pr/Scribbit.app` |
+| Initial pre-rebase candidate | **106 tests in 14 suites passed** and signed build; `build/footer-branding/tests-host.log` and `build/footer-branding/build.log` |
+| Initial fixture-only optical preview | `build/footer-branding/footer.png` and `editor-footer.png`; generated offscreen before the padding change, not current-spacing acceptance |
+| User review — November 16, 2026 | Earlier candidate launched at user's request; user requested more separation between logo and text view |
+| Updated spacing manual review — November 16, 2026 | Updated candidate launched at the user's request before PR preparation; automated GUI/physical-notch assertions were not executed |
+
+The sandboxed suite encountered the documented NSFileCoordinator access failure;
+the same suite passed with approved host access without bypassing coordination.
+Tests now use windowless geometry fixtures without generating image captures.
+Implementation and automated tests did not access real notes, mutate production
+preferences or install/restart the app. The updated candidate was subsequently
+launched at the user's request for manual review. The README's existing
+rendered demo remains illustrative and was not re-exported for this adjustment.
+
 ## README rendered demo — November 16, 2026
 
 Added a README GIF and still-image alternative, generated offscreen from current

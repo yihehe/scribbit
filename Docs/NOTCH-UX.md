@@ -14,7 +14,7 @@ Changing the rate during motion only affects subsequent transitions.
 | Aspect | Implementation |
 | --- | --- |
 | Resting left wing | Optional 36-point pencil wing; one contour connects it to the cutout, with an offset-aware morph into/out of the editor |
-| Information and settings | Bottom disclosure contains file/full path, togglable pin/preview icon buttons, and settings gear. Collapsed footer contains only a chevron. Cmd-comma opens settings even when collapsed; no persistent menu-bar icon |
+| Information and settings | Bottom disclosure contains file/full path, togglable pin/preview icon buttons, and settings gear. The always-visible footer has a quiet frog/Scribbit mark at left and native chevron at center, in a 20-point row with 8-point top padding. Cmd-comma opens settings even when collapsed; no persistent menu-bar icon |
 | Attached surface | Black silhouette reaches the screen's top edge, concave shoulders and rounded bottom corners; content stays below the physical camera |
 | Width expansion | Perceptual duration 0.44 s, bounce 0.25 |
 | Height expansion | Perceptual duration 0.38 s, bounce 0.22 |

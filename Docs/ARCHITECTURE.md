@@ -9,7 +9,7 @@
 | `NoteSession` | Baseline bytes, editable text, open/save/close/reload transitions | Hide editor after failed save |
 | `SessionWorker` | Serial ownership of synchronous session and disk transactions | Access UI state |
 | `NoteModel` | Main-actor observable state, I/O busy gating, error presentation | Do file I/O synchronously on main actor |
-| `NativeEditor`, `NoteTextView`, `NoteView` | Stable native editing, preview, and collapsible bottom controls | Convert formatted text back to source |
+| `NativeEditor`, `NoteTextView`, `NoteView`, `NoteFooter` | Stable native editing, preview, collapsible bottom controls and lightweight footer identity | Convert formatted text back to source |
 | `NotchPresenter` | Fixed-window silhouette animation and content arrival/departure | Save files, clear unsaved buffers, use private filters |
 | `AppSettings` | Production preferences or RAM-only isolated-test settings | Write production preferences from GUI smoke |
 | `SettingsPopupView`, `SettingsPopupState` | Transient settings UI and current system-preference snapshot | Register login, persist settings, or replace the native editor directly |
@@ -154,6 +154,14 @@ Only the information/control section is a conditional SwiftUI subview: the edito
 same structural position, retaining selection/undo when its viewport resizes.
 Error recovery stays outside the disclosure. Cmd-Return is registered in the
 native File menu rather than depending on the visibility of the Done button.
+
+`NoteFooter` is always present below the information section, independent of
+editing/preview/welcome content. It overlays the cached 14-point frog and a small
+Scribbit label at left. Eight points of padding above the 20-point row separate
+it from the editor/preview, reserving 28 points overall without changing
+the centered full-width native disclosure. The brand is not interactive, so it
+does not acquire editor focus or replace the settings anchor. The optional
+resting-wing preference continues to affect only the closed surface.
 
 The expanded-section gear anchors one native transient `NSPopover`, whose
 SwiftUI content observes the note model and a small `SettingsPopupState` snapshot.

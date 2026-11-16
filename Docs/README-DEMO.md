@@ -8,8 +8,8 @@ notch contour, screen-safe geometry, default hover delay, spring samples, arriva
 scale/easing and departure timing follow the current app sources. Font drawing,
 the sample note, caret, chevron and pointer are a documentation fixture; no live
 NSTextView, user note, desktop or OS pointer is captured. The open footer uses
-the existing committed frog-and-pencil PNG and the proposed footer-branding
-layout: a 14-point frog, 5-point gap and 11-point medium Scribbit wordmark,
+the existing committed frog-and-pencil PNG and the footer-branding style:
+a 14-point frog, 5-point gap and 11-point medium Scribbit wordmark,
 inset 16 points from the leading edge. The optional resting-notch indicator is
 enabled for this demo, though off by default in the app. Its left wing and
 14-point frog use the shared indicator geometry; opening/collapse use the shared
@@ -56,7 +56,9 @@ at or above 4 MiB. The animation is 800×560 at 20 frames/second, with a fixed
 background and no full-frame flash/cut. A still-image link is provided for
 readers who do not want animation.
 
-The asset previews the independently developed footer-branding change; it does
-not imply that change is merged or demonstrate the no-file draft feature.
+The asset illustrates footer identity rather than exact native layout; the native
+footer now includes 8 points of additional top padding. This illustrative asset
+was not re-exported as part of that spacing adjustment. It does not demonstrate
+the no-file draft feature.
 If the footer, typography, geometry or timing changes, regenerate and
 review it rather than claiming it automatically tracks every native UI detail.
