@@ -457,3 +457,24 @@ fallback. Session/UI closed buffers still clear. The source acceptance limit is
 
 64 MiB native editing/undo/preview responsiveness and whole-app memory remain
 unverified; passing storage boundaries is not a GUI performance measurement.
+
+### Selected-file cache core benchmark — November 16, 2026
+
+The [performance report](FILE-WATCHING-PERFORMANCE.md) records reproduction,
+environment, complete paired timing tables, backing read counts, process CPU/RSS
+and important limitations. Production storage/cache/save code was unchanged.
+
+| Check | Result |
+| --- | --- |
+| Optimized harness | swiftc -O against production core sources; no GUI/app launch |
+| Deterministic self-test | Percentile math, fixture bytes, cache reuse, save and external replacement contracts passed |
+| Completed measurement | 96 unique cells across six sizes, two layers, four workloads and two store modes |
+| Result checks | Sample/result shape and backing read-count bounds passed; all measured source SHA-256 hashes match current files |
+| Fixture cleanup | Final-run private per-cell temporary directories were removed automatically |
+| Static checks | Shell syntax, Python AST and git diff --check passed |
+| Production source diff | Empty; no cache/save optimization added during benchmarking |
+| Whole-app GUI / energy / cold disk | Not measured; existing app was left untouched |
+| Commit / push | Not requested or performed for the benchmark work |
+
+Raw final artifacts remain ignored below build/file-watching-benchmarks-final;
+the durable report contains the results without committing generated outputs.

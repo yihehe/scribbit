@@ -212,14 +212,16 @@ headings, task lists, tables, images, HTML, and fenced code blocks have no speci
 layout. No remote images are fetched. Switching preview modes recreates the text
 view and resets its native undo history; saving does not reset it.
 
-Idle behavior is event-driven: no recurring timers, disk watchers, polling loops,
-network requests, or Markdown parsing while hidden. Finite cancellable work items
-exist only during hover entry/exit and a transition. Core Animation morphs a mask
+Idle behavior is event-driven: no recurring timers, polling loops, network
+requests, or Markdown parsing while hidden. Native file/parent observations
+invalidate the selected-note RAM snapshot without background rereads. Finite
+cancellable work items handle hover entry/exit and transitions. Core Animation morphs a mask
 inside a fixed window; the editor is not relaid out on every frame. Screen layouts
 update on display-change
 notifications. Rendering is native AppKit/SwiftUI. Resource claims are design
 properties, not a universal measured CPU/RAM guarantee; see the test report and
-manual profiling instructions.
+manual profiling instructions. The [file-watching benchmark](Docs/FILE-WATCHING-PERFORMANCE.md)
+compares warm core/storage paths, not whole-app UI performance.
 
 ## Privacy
 

@@ -258,3 +258,15 @@ DiskNoteStore boundary and oversized-save regressions exercise the 64 MiB limit.
 64 MiB is a supported source acceptance bound, not a UI performance benchmark.
 Manual editor/undo/preview latency and whole-app RSS at that size remain unverified;
 use disposable data only and do not infer interactive smoothness from store tests.
+
+## File-watching benchmark harness
+
+Scripts/benchmark-file-watching.sh builds an isolated release-optimized CLI from
+the production storage/session sources; it does not launch Scribbit. Use --quick
+for smoke validation, no flags for ordinary sizes, or --stress to add 8/64 MiB.
+The executable self-test checks percentile computation, fixtures and read/cache
+contracts. The driver checks result schemas and backing read counts without
+timing assertions. Fixtures are private per subprocess and removed automatically.
+Host access may be needed for NSFileCoordinator. Measurements and limitations are
+in [FILE-WATCHING-PERFORMANCE.md](FILE-WATCHING-PERFORMANCE.md). This is not a GUI,
+physical-disk, energy or whole-app memory benchmark.
