@@ -9,7 +9,7 @@ Shift-Tab command; there are no third-party runtime packages.
 
 A small native macOS menu-bar app for one file-backed note, expanding directly
 from the notch with a spring-animated black silhouette. Move the pointer to
-the notch for 250 ms, click to write, and press **Done** or **Escape** to save and hide it.
+the notch for 250 ms, start typing, and press **Done** or **Escape** to save and hide it.
 On displays without a notch, use the top-center 120-point strip.
 
 **Requirements:** macOS 14 or later; Swift 6 / modern Xcode Command Line Tools to
@@ -59,8 +59,20 @@ target, not the symlink itself. Create does not truncate an existing file.
 
 A hover-opened note collapses 180 ms after the pointer leaves; moving back cancels
 that dismissal. Click the pin button to keep it open while writing. A menu-opened
-note does not close merely because the pointer is elsewhere. Hover reveal does not
-steal keyboard focus: click to edit. The top header is gone; file/actions/status
+note does not close merely because the pointer is elsewhere. Both hover and
+menu openings focus the editor, so typing resumes at the restored position
+without a click. A completed hover dwell therefore moves keyboard focus from
+your current app into Scribbit.
+
+Each reopening restores the current file's last caret or selection. If the file's
+contents are unchanged, the editor also restores the last scroll position—even
+if you scrolled away from the cursor to read. If contents changed externally, the
+saved scroll position is discarded and the safely clamped cursor is shown instead.
+Positions are kept only for the last file during this app run, not across quitting
+or switching files. Fresh disk contents remain authoritative. This is position
+restoration, not tracking a word as other editors insert text.
+
+The top header is gone; file/actions/status
 live in a bottom disclosure that starts closed, leaving only a 20-point chevron.
 Save errors and recovery actions are never hidden by that disclosure. After explicitly closing over the notch, leave
 the trigger region before reentering to reopen. The pinned surface also ignores

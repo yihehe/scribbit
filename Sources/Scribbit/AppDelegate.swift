@@ -23,7 +23,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private var presenter: NotchPresenter!
     private var closing = false
     private var openedByHover = false
-    private var hasInteracted = false
     private var pointerInsideSurface = true
     private var exitWork: DispatchWorkItem?
     private var statusItem: NSStatusItem!
@@ -49,15 +48,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.screensChanged() }
             })
-        observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
-            object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self, !self.presentingDialog, !self.trackingMenu, NSApp.modalWindow == nil else { return }
-                    guard !self.model.pinned else { return }
-                    if self.openedByHover, !self.hasInteracted, self.presenter.contains(self.pointerLocation) { return }
-                    Task { await self.closeNote() }
-                }
-            })
+        // Isolated tests drive this same handler explicitly. Ambient desktop
+        // activation changes must not race their controlled open/close steps.
+        if !isolated {
+            observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
+                object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.applicationDeactivated() }
+                })
+        }
         observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification,
             object: nil, queue: .main) { [weak self] _ in Task { await self?.closeNote() } })
         refreshIndicators()
@@ -67,6 +65,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             setLogin(enabled: true, reportError: true)
         }
         if !isolated, bookmark == nil { Task { await chooseFile() } }
+    }
+
+    private func applicationDeactivated() {
+        guard !presentingDialog, !trackingMenu, NSApp.modalWindow == nil, !model.pinned else { return }
+        Task { await closeNote() }
     }
 
     private func createPanel() {
@@ -192,9 +195,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if let monitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .leftMouseUp, .leftMouseDown, .rightMouseDown, .keyDown], handler: { [weak self] event in
             guard let self else { return event }
             if [.mouseMoved, .leftMouseDragged, .leftMouseUp].contains(event.type) { self.pointerMoved() }
-            if event.type == .keyDown || (event.type == .leftMouseDown && self.presenter.contains(self.pointerLocation)) {
-                self.hasInteracted = true
-            }
             if event.type == .keyDown, event.keyCode == 53, self.panel.isVisible, !self.presentingDialog {
                 Task { await self.closeNote() }; return nil
             }
@@ -269,6 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             openedByHover = false
             exitWork?.cancel(); exitWork = nil
             NSApp.activate(ignoringOtherApps: true); panel.makeKeyAndOrderFront(nil)
+            focusEditor(in: panel.contentView)
             return
         }
         do {
@@ -303,23 +304,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if let destination { presenter.configure(geometry(destination)) }
         indicators.forEach { $0.orderOut(nil) }
         openedByHover = fromHover
-        hasInteracted = false
         pointerInsideSurface = true
-        await presenter.reveal(takeFocus: !fromHover)
+        // A completed hover is an editing intent: focus without a click that
+        // would otherwise move the just-restored insertion point.
+        await presenter.reveal(takeFocus: true)
         panel.contentView?.layoutSubtreeIfNeeded()
-        if !fromHover, !closing { focusEditor(in: panel.contentView) }
+        if !closing { focusEditor(in: panel.contentView) }
         trackOpenPointer()
     }
     private func focusEditor(in view: NSView?) {
         guard let view else { return }
-        if let text = view as? NSTextView { panel.makeFirstResponder(text); return }
+        if let text = view as? NSTextView {
+            let origin = text.enclosingScrollView?.contentView.bounds.origin
+            panel.makeFirstResponder(text)
+            if model.editorScrollOrigin != nil, let origin, let editor = text as? NoteTextView {
+                editor.restoreViewport(origin)
+                editor.layoutSubtreeIfNeeded()
+            } else {
+                text.scrollRangeToVisible(text.selectedRange())
+            }
+            return
+        }
         for child in view.subviews { focusEditor(in: child) }
     }
     private func commitComposition(in view: NSView?) {
         guard let view else { return }
         if let editor = view as? NSTextView {
+            let origin = editor.enclosingScrollView?.contentView.bounds.origin
             // Use AppKit's acceptance operation, never reconstruct preedit.
             editor.unmarkText()
+            if editor is NoteTextView {
+                model.rememberEditorSelection(editor.selectedRange())
+                if let origin { model.rememberEditorScrollOrigin(origin) }
+            }
             return
         }
         for child in view.subviews { commitComposition(in: child) }
@@ -403,7 +420,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         alert.addButton(withTitle: "Discard and Reload")
         let response = alert.runModal()
         presentingDialog = false
-        if response == .alertSecondButtonReturn { await model.reload() }
+        if response == .alertSecondButtonReturn {
+            commitComposition(in: panel.contentView)
+            await model.reload()
+        }
     }
     private func showError(_ title: String, _ detail: String) {
         presentingDialog = true
@@ -603,7 +623,8 @@ extension AppDelegate {
         setAnimationSpeed(1)
         model.text = "Shell edited note"
         let closed = await closeNote()
-        try check(closed && !panel.isVisible && !model.isOpen, "Shell save and hide failed")
+        try check(closed && !panel.isVisible && !model.isOpen,
+                  "Shell save and hide failed: closed=\(closed), visible=\(panel.isVisible), open=\(model.isOpen), busy=\(model.isBusy), closing=\(closing), error=\(String(describing: model.error))")
         try check(try String(contentsOf: file, encoding: .utf8) == "Shell edited note", "Shell did not save")
         try Data("Shell external edit".utf8).write(to: file, options: .atomic)
         await openNote()
@@ -662,8 +683,152 @@ extension AppDelegate {
         await model.reload()
         _ = await closeNote()
         testPointer = nil
+        try await runSelectionChecks(file: file, display: display)
+        try await runViewportChecks(file: file, display: display)
         print("HOVER_SMOKE_PASS: dwell, exit, reentry cancellation, pin, save-on-exit, conflict retention, close-during-open")
         print("SHELL_SMOKE_PASS: bookmark, open, close-save, disk refresh, conflict retention, indicator lifecycle")
+    }
+    private func runSelectionChecks(file: URL, display: NSScreen) async throws {
+        func check(_ value: Bool, _ message: String) throws {
+            if !value { throw NSError(domain: "SelectionSmoke", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
+        }
+        func editor() throws -> EditorProbe {
+            guard let found = panel.contentView.flatMap({ EditorProbe.find(in: $0) }) else {
+                throw CocoaError(.featureUnsupported)
+            }
+            return found
+        }
+        let source = (0..<150).map { "Line \($0) 🐸 writing a note\n" }.joined()
+        try Data(source.utf8).write(to: file, options: .atomic)
+        await openFile(file)
+        let range = (source as NSString).range(of: "Line 140 🐸")
+        try editor().setSelectedRange(range)
+        try editor().view.scrollRangeToVisible(range)
+        try check(model.editorSelection == range, "Selection delegate did not checkpoint native range")
+        model.preview = true
+        try await waitForSmoke { self.panel.contentView.flatMap { EditorProbe.find(in: $0) } == nil }
+        model.preview = false
+        try await waitForSmoke { self.panel.contentView.flatMap { EditorProbe.find(in: $0) }?.selectedRange() == range }
+        model.preview = true
+        try await waitForSmoke { self.panel.contentView.flatMap { EditorProbe.find(in: $0) } == nil }
+        _ = await closeNote()
+        try check(model.text.isEmpty && model.editorSelection == range, "Hidden buffer release erased saved selection")
+        await openNote()
+        let restored = try editor()
+        try check(restored.selectedRange() == range && panel.firstResponder === restored.view,
+                  "Explicit reopen did not focus the restored selection: native=\(restored.selectedRange()), expected=\(range), key=\(panel.isKeyWindow), editable=\(restored.isEditable), responder=\(String(describing: panel.firstResponder))")
+        try check((restored.enclosingScrollView?.contentView.bounds.minY ?? 0) > 0,
+                  "Reopen did not scroll the offscreen selection into view")
+        // Reopen once more at a caret, not just a nonempty selection.
+        let caret = NSRange(location: range.location, length: 0)
+        restored.setSelectedRange(caret)
+        _ = await closeNote()
+        let trigger = geometry(display).trigger
+        testPointer = CGPoint(x: trigger.midX, y: trigger.midY)
+        await openFile(file, on: display, fromHover: true)
+        let hoverEditor = try editor()
+        try check(hoverEditor.selectedRange() == caret && panel.isKeyWindow &&
+                  panel.firstResponder === hoverEditor.view,
+                  "Hover reopen must focus the native editor at the restored caret")
+        // Route a real app-local key event through the window/responder chain.
+        // Do not click, makeFirstResponder, or insertText directly in this test.
+        try postSmokeKey("x", keyCode: 7)
+        let typed = (source as NSString).replacingCharacters(in: caret, with: "x")
+        try await waitForSmoke { self.model.text == typed }
+        try check(hoverEditor.selectedRange() == NSRange(location: caret.location + 1, length: 0),
+                  "Typing after hover-open did not insert at the restored caret")
+        _ = await closeNote()
+        await openFile(file, on: display, fromHover: true)
+        // A now-active hover-opened editor must dismiss on app switching,
+        // including before the user has clicked or typed.
+        model.pinned = true
+        applicationDeactivated()
+        try check(model.isOpen && !closing, "Pinned note did not ignore deactivation")
+        model.pinned = false
+        applicationDeactivated()
+        try await waitForSmoke { !self.model.isOpen && !self.closing }
+        try check(!panel.isVisible, "Unpinned hover editor ignored deactivation before interaction")
+        testPointer = nil
+        try Data("🐸".utf8).write(to: file, options: .atomic)
+        await openNote()
+        try check(try editor().selectedRange() == NSRange(location: 2, length: 0) && model.text == "🐸",
+                  "Fresh shorter disk source did not clamp the caret to Unicode EOF")
+        _ = await closeNote()
+        let other = file.deletingLastPathComponent().appendingPathComponent("selection-other.md")
+        try Data(source.utf8).write(to: other, options: .atomic)
+        await openFile(other)
+        try check(try editor().selectedRange() == NSRange(location: 0, length: 0),
+                  "New file inherited another file's position")
+        _ = await closeNote()
+        print("EDITOR_SELECTION_SMOKE_PASS: caret and selection, preview recreation, hidden buffer release, scroll, explicit/hover focus, routed typing without a click, deactivation before interaction, fresh Unicode clamp, file switch")
+    }
+    private func runViewportChecks(file: URL, display: NSScreen) async throws {
+        func check(_ value: Bool, _ message: String) throws {
+            if !value { throw NSError(domain: "ViewportSmoke", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
+        }
+        func editor() throws -> EditorProbe {
+            guard let found = panel.contentView.flatMap({ EditorProbe.find(in: $0) }) else {
+                throw CocoaError(.featureUnsupported)
+            }
+            return found
+        }
+        let source = (0..<180).map { "Reading line \($0) 🐸\n" }.joined()
+        try Data(source.utf8).write(to: file, options: .atomic)
+        await openFile(file)
+        let readingRange = (source as NSString).range(of: "Reading line 140")
+        let caret = NSRange(location: 0, length: 0)
+        try editor().setSelectedRange(caret)
+        try editor().view.scrollRangeToVisible(readingRange)
+        let saved = try editor().enclosingScrollView!.contentView.bounds.origin
+        try check(saved.y > 500, "Viewport fixture did not scroll away from its caret")
+        model.preview = true
+        try await waitForSmoke { self.panel.contentView.flatMap { EditorProbe.find(in: $0) } == nil }
+        model.preview = false
+        try await waitForSmoke { self.panel.contentView.flatMap { EditorProbe.find(in: $0) } != nil }
+        panel.contentView?.layoutSubtreeIfNeeded()
+        try check(abs(try editor().enclosingScrollView!.contentView.bounds.origin.y - saved.y) < 1,
+                  "Preview recreation lost the editor's viewport")
+        _ = await closeNote()
+        await openNote()
+        let reopened = try editor()
+        try check(reopened.selectedRange() == caret && panel.firstResponder === reopened.view,
+                  "Viewport restoration changed caret or keyboard focus")
+        try check(abs(reopened.enclosingScrollView!.contentView.bounds.origin.y - saved.y) < 1,
+                  "Unchanged file did not restore its viewport independently of the caret")
+        _ = await closeNote()
+        let trigger = geometry(display).trigger
+        testPointer = CGPoint(x: trigger.midX, y: trigger.midY)
+        await openFile(file, on: display, fromHover: true)
+        try check(abs(try editor().enclosingScrollView!.contentView.bounds.origin.y - saved.y) < 1,
+                  "Hover focus overrode the saved viewport")
+        try postSmokeKey("x", keyCode: 7)
+        let edited = "x" + source
+        try await waitForSmoke { self.model.text == edited }
+        try check(try editor().selectedRange() == NSRange(location: 1, length: 0) &&
+                  editor().enclosingScrollView!.contentView.bounds.origin.y < 100,
+                  "Native typing did not naturally reveal the offscreen caret")
+        // Save another reading viewport so external-change fallback is distinct
+        // from the just-typed caret's native scroll-to-top.
+        try editor().view.scrollRangeToVisible((edited as NSString).range(of: "Reading line 140"))
+        _ = await closeNote()
+        testPointer = nil
+        // Same-length external edit must invalidate the viewport, not just shrink.
+        try Data(edited.replacingOccurrences(of: "Reading", with: "Changed").utf8).write(to: file, options: .atomic)
+        await openNote()
+        try check(try editor().selectedRange() == NSRange(location: 1, length: 0) &&
+                  editor().enclosingScrollView!.contentView.bounds.origin.y < 100,
+                  "External byte change did not fall back to showing the caret")
+        _ = await closeNote()
+        print("EDITOR_VIEWPORT_SMOKE_PASS: independent offscreen caret, preview, menu/hover focus, exact unchanged viewport, natural typing reveal, same-length external edit fallback")
+    }
+    private func postSmokeKey(_ characters: String, keyCode: UInt16) throws {
+        for type in [NSEvent.EventType.keyDown, .keyUp] {
+            guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: panel.windowNumber,
+                context: nil, characters: characters, charactersIgnoringModifiers: characters,
+                isARepeat: false, keyCode: keyCode) else { throw CocoaError(.featureUnsupported) }
+            NSApp.postEvent(event, atStart: false)
+        }
     }
     private func waitForSmoke(_ condition: () -> Bool) async throws {
         let deadline = ProcessInfo.processInfo.systemUptime + 5

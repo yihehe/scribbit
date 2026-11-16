@@ -24,7 +24,7 @@ Changing the rate during motion only affects subsequent transitions.
 | Departure | Outgoing source remains visible, fading for 0.16 s while the shape contracts; text is released only after dismissal completes |
 | Shape geometry | Shoulder capped at 14 pt, lower radius capped at 28 pt; native circular arcs |
 | Hover entry / exit | 250 ms dwell / 180 ms exit delay; reentry cancels dismissal |
-| Focus | Hover reveal does not activate or steal keyboard focus. Click to edit. Menu-open takes focus immediately |
+| Focus | Menu and completed hover openings activate the panel and focus the editor at the restored selection; type without clicking |
 | Pin | Keeps the note open across pointer exit, outside clicks, and app deactivation; Done/Escape/normal quit still save and close |
 | Working-surface holds | Menus, dialogs, file I/O, and active pointer drags inhibit hover dismissal |
 | Accessibility | Reduce Motion uses a 140 ms fade, without the size spring or content growth |
@@ -70,8 +70,10 @@ flowchart LR
   worker has saved. `clearClosedPresentation` releases it after the collapse. The outgoing editor is
   noneditable, and its keyboard focus is resigned before save, so late keystrokes
   cannot enter an already-saved buffer during departure.
-- `AppDelegate` distinguishes passive hover openings from explicit menu openings.
-  A pending hover rechecks pointer eligibility after disk read to avoid a late flash.
+- `AppDelegate` distinguishes hover openings from explicit menu openings for
+  pointer-exit dismissal, not keyboard focus: both focus the editor.
+  A pending hover rechecks pointer eligibility after disk read to avoid a late
+  flash or activation after the pointer has left.
 - Production pointer reads always come from NSEvent. The isolated GUI harness can
   inject coordinates without warping the real cursor or posting global events.
 

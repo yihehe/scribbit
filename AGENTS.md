@@ -66,6 +66,17 @@
   remove observers on teardown/deinit. This is synchronization, not a custom
   undo engine.
 - Source text is authoritative. Preview is read-only and intentionally limited.
+- Keep the last file's caret/selection separate from hidden source release.
+  Position is RAM-only, resets on successful file switch, and clamps to composed
+  UTF-16 character boundaries after fresh reads. Selection checkpoints must not
+  publish per-keystroke SwiftUI invalidations; open/reload revisions request
+  restoration even for identical source. Both menu and completed hover opens
+  must focus the native editor at the restored selection without a click.
+- Preserve cursor and viewport independently. Capture scroll position before
+  close and preview teardown; restore it once during native layout only for the
+  same source/file. Compare worker-computed SHA-256 fingerprints without retaining
+  hidden note text. Changed source falls back to showing the clamped cursor.
+  Focus must not undo viewport restoration; do not add a scroll lock or polling.
 - No polling timers, networking, global keyboard monitors, Accessibility prompts,
   or watchers just to implement notch hover. Preserve cancellation/reentry logic.
 - File pickers and alerts inhibit automatic close. Always balance scoped access.
@@ -120,4 +131,7 @@ Never patch system SDK files or generalize it into arbitrary interface rewriting
 - GUI tests post app-local events only. Synthetic typing must finish its event
   before the next command. Never move harness event-group mechanics into the
   production editor to accommodate an inaccurate test driver.
+- Isolated shell checks drive the shared deactivation handler explicitly; do not
+  reintroduce ambient desktop deactivation notifications into controlled test
+  sequences. Production still observes the real application notification.
 - Never push, publish a release, install or restart an app without authorization.

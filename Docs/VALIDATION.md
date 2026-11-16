@@ -1,5 +1,53 @@
 # Validation record
 
+## Restore editing position — November 15, 2026
+
+Reopening restores the last file's caret/selection and focuses the native editor
+for both menu and hover opens. Unchanged source also restores its independent
+viewport, including an intentionally offscreen caret. External byte changes fall
+back to showing the safely clamped caret. State remains RAM-only for the last
+successfully opened file; source is still read fresh and released after close.
+
+| Check | Result / ignored local evidence |
+| --- | --- |
+| Unit/filesystem/resource suite | **89 tests in 10 suites passed**; `build/restore-caret-scroll/tests.log` |
+| Separate release build and strict signature | Passed; `build/restore-caret-scroll/build.log` |
+| Isolated native GUI suite | **GUI_SMOKE_PASS**; `build/restore-caret-scroll/gui.log` |
+| Selection gate | **EDITOR_SELECTION_SMOKE_PASS**: caret/selection, preview recreation, hidden source release, keyboard focus, click-free typing, deactivation, Unicode clamp and file switch |
+| Viewport gate | **EDITOR_VIEWPORT_SMOKE_PASS**: offscreen caret, preview, menu/hover reopen, native typing reveal and same-length external-change fallback |
+| Existing GUI regressions | Presenter lifecycle, all five composition contracts, native history, Shift-Tab, controls, motion, hover and save/conflict checks passed |
+| Clean-source PR check | Fresh export with no reused build cache: **89 tests in 10 suites passed**, signed release build and strict signature passed; `build/restore-caret-pr/clean-tests.log` and `clean-build.log` |
+| Publication hygiene | 67 intended files, 62 UTF-8 files screened, 17 local Markdown links resolved; no findings in the bounded local-path/retired-reference/credential-pattern check; `build/restore-caret-pr/audit.json` |
+| Shell/plist/coverage checks | Bash 3.2 runner regressions, script syntax, plist and whitespace checks passed; unit-only coverage report generated separately from GUI checks |
+| Manual smoke feedback | Positive user feedback after launching the candidate; not a claim that every manual-matrix case was exercised |
+| Remaining manual checks | Physical input-method candidate UI, full display/keyboard matrix, login cycle and long-running/large-file performance remain unverified |
+
+Candidate: `build/restore-caret-scroll/Scribbit.app`. This change includes no
+settings-popup or configurable-hover work. No production preference or login
+configuration was changed by tests; isolated GUI fixtures use disposable files
+and RAM-only settings. The candidate was later launched with user approval.
+
+Apple's CryptoKit computes a 32-byte source fingerprint on the serial file worker;
+there is no third-party package, hidden text cache, scroll observer or polling.
+Native layout applies a pending viewport once and constrains it to current bounds.
+Offsets do not track semantic text through external insertions or reflow.
+
+Desktop deactivation initially raced controlled GUI assertions. Isolated tests
+now invoke the shared controller handler directly; production still observes the
+native notification. Pin, dialog and save-failure protections remain in place.
+No retry timer or event-group workaround was added to production editing.
+
+Reproduce from the repository root, with host file-coordination access and GUI
+launch permission where required:
+
+```sh
+/bin/bash Tests/Scripts/test-runner.sh
+Scripts/test.sh
+APP_PATH="$PWD/build/restore-caret-scroll/Scribbit.app" Scripts/build-app.sh
+APP_PATH="$PWD/build/restore-caret-scroll/Scribbit.app" Scripts/gui-smoke.sh native "$PWD/build/restore-caret-scroll/smoke"
+git diff --check
+```
+
 ## Branding pre-commit review — November 15, 2026
 
 Reviewed the complete branding diff and exports. No blocking correctness or

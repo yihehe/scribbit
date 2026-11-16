@@ -25,6 +25,30 @@ a new reveal, a waiter that follows replacement motion, multiple waiters and an
 idle wait. The superseded-reveal case failed against the pre-refactor presenter;
 it is not merely a new test of already-passing behavior.
 
+`EDITOR_SELECTION_SMOKE_PASS` is also required. The real isolated shell verifies
+native selection checkpoints, preview recreation, position surviving hidden
+buffer release, explicit reopen focus, scrolling a late line into view, hover
+focus and app-local typing at the restored caret without clicking, unpinned
+deactivation before interaction, fresh externally shortened Unicode source, and
+reset on file switch. Pure tests cover invalid/overflowing UTF-16 ranges, emoji, composed
+characters and CRLF. Model tests cover fresh reads, failed open/save/reload,
+position retention and revision behavior. These use disposable files/RAM settings,
+not persisted cursor preferences or a user's note.
+
+`EDITOR_VIEWPORT_SMOKE_PASS` checks that scrolling far from a caret does not move
+it, that preview recreation and menu/hover reopening restore that viewport, that
+native typing naturally reveals the offscreen caret, and that a same-length
+external edit falls back to showing the caret. Model tests cover source
+fingerprints after saves, empty hidden buffers, exact-byte Unicode
+changes, failed reads/saves/reloads, file switches and fresh instances.
+
+Isolated shell tests invoke the production deactivation handler explicitly,
+including its pinned/unpinned gates, instead of observing ambient OS activation
+changes. Otherwise switching focus on the desktop can initiate a legitimate
+close during an unrelated test assertion. The non-isolated app still observes
+the native notification; actual cross-app notification delivery is manual
+acceptance, not established by this controller check.
+
 ## Automated suite
 
 ```sh
@@ -111,6 +135,8 @@ These are not claimed as passed by unit tests or screenshots.
 | Hover exit / pin | Open via hover, leave, reenter within 180 ms, then pin and leave | Reentry cancels; unpinned exit saves/collapses; pin holds surface |
 | Close paths | Edit distinct marker and try Done, Escape, Cmd-W, outside click, switch app, normal Quit separately | Marker saved on every path |
 | No stale reopen | Close, edit file in another editor, reopen | External version is loaded |
+| Last edit position | Place caret/select text near end of long note; close/reopen by menu and hover; type without clicking; toggle preview | Position restored; unchanged source preserves viewport independently, changed source shows the caret; both open paths focus the editor and typing inserts/replaces at the restored position |
+| Independent scroll | Leave caret near the start, scroll far down to read, close/reopen without changing the file; repeat after an external edit | Unchanged source restores the reading viewport without moving the caret; changed source shows the clamped caret instead |
 | Conflict | Edit here, change same file in another editor, Done | Editor stays open; external bytes are intact |
 | Recovery | Save a Copy to another path; cancel reload, then confirm reload | Copy preserves buffer; cancel retains; confirmation reloads |
 | Save failure | Remove write permission from disposable parent folder, edit and close | Error and open buffer; retry after restoring access |

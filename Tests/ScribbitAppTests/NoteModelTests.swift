@@ -20,6 +20,155 @@ private final class TestStore: NoteStore {
 
 final class NoteModelTests {
     private let url = URL(fileURLWithPath: "/example/note.md")
+    @Test @MainActor func viewportSurvivesSavedEditsAndHiddenBufferRelease() async {
+        let store = TestStore()
+        let model = NoteModel(session: NoteSession(store: store))
+        _ = await model.open(url)
+        #expect(model.editorScrollOrigin == nil)
+        model.text = "edited source"
+        model.rememberEditorScrollOrigin(CGPoint(x: 0, y: 230))
+        model.rememberEditorSelection(NSRange(location: 2, length: 0))
+        let revision = model.selectionRevision
+        let closed = await model.close(keepPresentation: true)
+        #expect(closed)
+        model.clearClosedPresentation()
+        model.rememberEditorScrollOrigin(.zero)
+        #expect(model.text.isEmpty)
+        #expect(model.editorScrollOrigin == CGPoint(x: 0, y: 230))
+        _ = await model.open(url)
+        #expect(model.text == "edited source")
+        #expect(model.editorScrollOrigin == CGPoint(x: 0, y: 230))
+        #expect(model.editorSelection.location == 2)
+        #expect(model.selectionRevision == revision + 1)
+        model.rememberEditorScrollOrigin(CGPoint(x: CGFloat.nan, y: 1))
+        #expect(model.editorScrollOrigin == CGPoint(x: 0, y: 230))
+    }
+    @Test @MainActor func externalByteChangesDiscardViewportEvenAtSameLength() async {
+        let store = TestStore()
+        let model = NoteModel(session: NoteSession(store: store))
+        _ = await model.open(url)
+        model.rememberEditorScrollOrigin(CGPoint(x: 0, y: 200))
+        model.rememberEditorSelection(NSRange(location: 3, length: 0))
+        // Clean close must remember the displayed source, not new external bytes.
+        store.bytes = Data("world".utf8)
+        _ = await model.close()
+        _ = await model.open(url)
+        #expect(model.editorScrollOrigin == nil)
+        #expect(model.editorSelection.location == 3)
+        model.text = "é"
+        model.rememberEditorScrollOrigin(CGPoint(x: 0, y: 100))
+        _ = await model.close()
+        store.bytes = Data("e\u{301}".utf8)
+        _ = await model.open(url)
+        #expect(model.text == "é") // Canonically equal, but not byte-identical.
+        #expect(model.editorScrollOrigin == nil)
+    }
+    @Test @MainActor func viewportPreservedOnFailuresAndResetOnFileSwitchOrRelaunch() async {
+        let store = TestStore()
+        let model = NoteModel(session: NoteSession(store: store))
+        _ = await model.open(url)
+        model.text = "edits"
+        let origin = CGPoint(x: 0, y: 321)
+        model.rememberEditorScrollOrigin(origin)
+        store.failSave = true
+        _ = await model.close()
+        #expect(model.editorScrollOrigin == origin)
+        store.failSave = false
+        _ = await model.close()
+        store.failRead = true
+        _ = await model.open(url)
+        #expect(model.editorScrollOrigin == origin)
+        store.failRead = false
+        _ = await model.open(url)
+        #expect(model.editorScrollOrigin == origin)
+        _ = await model.close()
+        _ = await model.open(URL(fileURLWithPath: "/example/other.md"))
+        #expect(model.editorScrollOrigin == nil)
+        let fresh = NoteModel(session: NoteSession(store: TestStore()))
+        _ = await fresh.open(url)
+        #expect(fresh.editorScrollOrigin == nil)
+    }
+    @Test @MainActor func reloadKeepsViewportOnlyForIdenticalSource() async {
+        let store = TestStore()
+        let model = NoteModel(session: NoteSession(store: store))
+        _ = await model.open(url)
+        let origin = CGPoint(x: 0, y: 200)
+        model.rememberEditorScrollOrigin(origin)
+        store.failRead = true
+        await model.reload()
+        #expect(model.editorScrollOrigin == origin)
+        store.failRead = false
+        await model.reload()
+        #expect(model.editorScrollOrigin == origin)
+        store.bytes = Data("world".utf8)
+        await model.reload()
+        #expect(model.editorScrollOrigin == nil)
+    }
+    @Test @MainActor func selectionSurvivesBufferReleaseAndFreshRead() async {
+        let store = TestStore()
+        let model = NoteModel(session: NoteSession(store: store))
+        _ = await model.open(url)
+        let revision = model.selectionRevision
+        let range = NSRange(location: 2, length: 2)
+        model.rememberEditorSelection(range)
+        await model.save()
+        #expect(model.selectionRevision == revision)
+        _ = await model.close(keepPresentation: true)
+        model.clearClosedPresentation()
+        model.rememberEditorSelection(NSRange(location: 0, length: 0))
+        #expect(model.text.isEmpty)
+        #expect(model.editorSelection == range)
+        store.bytes = Data("hello external".utf8)
+        _ = await model.open(url)
+        #expect(model.text == "hello external")
+        #expect(model.editorSelection == range)
+        #expect(model.selectionRevision == revision + 1)
+        _ = await model.close()
+        store.bytes = Data("🐸".utf8)
+        _ = await model.open(url)
+        #expect(model.editorSelection == NSRange(location: 2, length: 0))
+    }
+    @Test @MainActor func failedOpenPreservesPositionButSuccessfulFileSwitchResetsIt() async {
+        let store = TestStore()
+        let model = NoteModel(session: NoteSession(store: store))
+        _ = await model.open(url)
+        model.rememberEditorSelection(NSRange(location: 4, length: 0))
+        _ = await model.close()
+        let revision = model.selectionRevision
+        store.failRead = true
+        let other = URL(fileURLWithPath: "/example/other.md")
+        let opened = await model.open(other)
+        #expect(!opened)
+        #expect(model.editorSelection.location == 4)
+        #expect(model.selectionRevision == revision)
+        store.failRead = false
+        _ = await model.open(url)
+        #expect(model.editorSelection.location == 4)
+        _ = await model.close()
+        _ = await model.open(other)
+        #expect(model.editorSelection == NSRange(location: 0, length: 0))
+    }
+    @Test @MainActor func failedCloseAndReloadRetainPosition() async {
+        let store = TestStore()
+        let model = NoteModel(session: NoteSession(store: store))
+        _ = await model.open(url)
+        model.text = "edited"
+        model.rememberEditorSelection(NSRange(location: 5, length: 0))
+        store.failSave = true
+        let closed = await model.close()
+        #expect(!closed)
+        #expect(model.editorSelection.location == 5)
+        let revision = model.selectionRevision
+        store.failRead = true
+        await model.reload()
+        #expect(model.editorSelection.location == 5)
+        #expect(model.selectionRevision == revision)
+        store.failRead = false
+        store.bytes = Data("e\u{301}".utf8)
+        await model.reload()
+        #expect(model.editorSelection == NSRange(location: 2, length: 0))
+        #expect(model.selectionRevision == revision + 1)
+    }
     @Test @MainActor func testModelOpenSaveCloseAndReopen() async {
         let store = TestStore()
         let model = NoteModel(session: NoteSession(store: store))
