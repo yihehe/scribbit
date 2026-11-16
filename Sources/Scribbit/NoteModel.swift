@@ -1,6 +1,13 @@
 import AppKit
 import Combine
+import CryptoKit
 import ScribbitCore
+
+// Keep only 32 bytes across close, not the hidden note's source. Hashing occurs
+// on the existing file worker, never during scrolling or selection movement.
+private func sourceFingerprint(_ source: String) -> Data {
+    Data(SHA256.hash(data: Data(source.utf8)))
+}
 
 /// The serial worker exclusively owns the synchronous session. File coordination
 /// and disk I/O never run on the UI thread. Controls freeze during a transaction.
@@ -29,6 +36,12 @@ final class NoteModel: ObservableObject {
     @Published var animationSpeed = 1.0
     @Published private(set) var isBusy = false
     @Published private(set) var isOpen = false
+    @Published private(set) var selectionRevision = 0
+    // Only the current file's position, in RAM. Clearing hidden text must not
+    // clear this, and caret movement must not invalidate the SwiftUI hierarchy.
+    private(set) var editorSelection = NSRange(location: 0, length: 0)
+    private(set) var editorScrollOrigin: CGPoint?
+    private var closedSourceFingerprint: Data?
     private(set) var url: URL?
     private var baselineText = ""
     private let worker: SessionWorker
@@ -42,11 +55,17 @@ final class NoteModel: ObservableObject {
         do {
             let loaded = try await worker.perform { session in
                 try session.open(url)
-                return session.text
+                return (text: session.text, fingerprint: sourceFingerprint(session.text))
             }
+            if self.url != url || closedSourceFingerprint != loaded.fingerprint {
+                editorScrollOrigin = nil
+            }
+            editorSelection = TextSelection.clamped(
+                self.url == url ? editorSelection : NSRange(location: 0, length: 0), in: loaded.text)
+            selectionRevision &+= 1
             self.url = url
-            text = loaded
-            baselineText = loaded
+            text = loaded.text
+            baselineText = loaded.text
             filename = url.lastPathComponent
             controlsExpanded = false
             preview = false
@@ -55,6 +74,14 @@ final class NoteModel: ObservableObject {
             return true
         } catch { self.error = error.localizedDescription; return false }
     }
+    func rememberEditorSelection(_ selection: NSRange) {
+        guard isOpen, !isBusy else { return }
+        editorSelection = selection
+    }
+    func rememberEditorScrollOrigin(_ origin: CGPoint) {
+        guard isOpen, !isBusy, origin.x.isFinite, origin.y.isFinite else { return }
+        editorScrollOrigin = origin
+    }
     func close(keepPresentation: Bool = false) async -> Bool {
         guard !isBusy else { return false }
         guard isOpen else { return true }
@@ -62,7 +89,12 @@ final class NoteModel: ObservableObject {
         let current = text
         defer { isBusy = false }
         do {
-            try await worker.perform { session in session.text = current; try session.close() }
+            let fingerprint = try await worker.perform { session in
+                session.text = current
+                try session.close()
+                return sourceFingerprint(current)
+            }
+            closedSourceFingerprint = fingerprint
             isOpen = false
             if !keepPresentation { clearClosedPresentation() }
             error = nil
@@ -91,14 +123,18 @@ final class NoteModel: ObservableObject {
     func reload() async {
         guard !isBusy, isOpen else { return }
         isBusy = true
+        let current = text
         defer { isBusy = false }
         do {
             let loaded = try await worker.perform { session in
                 try session.reloadDiscardingEdits()
-                return session.text
+                return (text: session.text, unchanged: current.utf8.elementsEqual(session.text.utf8))
             }
-            text = loaded
-            baselineText = loaded
+            if !loaded.unchanged { editorScrollOrigin = nil }
+            text = loaded.text
+            baselineText = loaded.text
+            editorSelection = TextSelection.clamped(editorSelection, in: loaded.text)
+            selectionRevision &+= 1
             error = nil
         } catch { self.error = error.localizedDescription }
     }

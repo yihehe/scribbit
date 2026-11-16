@@ -61,6 +61,15 @@ stateDiagram-v2
 10. The worker releases saved source/baseline on close. The UI retains its
     outgoing presentation until collapse ends, with editing disabled, then clears it.
 11. Neither canceling a file picker nor a failed read creates/truncates the target.
+12. One RAM-only selection range survives source release for the last file.
+    Successful open/reload clamps it to the fresh source; a successful file
+    switch resets it. An open/reload revision requests restoration independently
+    of source-byte changes. Native selection checkpoints do not publish view
+    invalidations. See `NATIVE-EDITOR.md` for Unicode, composition and focus policy.
+13. An independent clip-view origin survives only when freshly read source matches
+    the last displayed/saved source fingerprint. The file worker computes SHA-256;
+    hidden note contents are still released. Native layout restores/constrains the
+    viewport once, and focus must not force an intentionally offscreen caret into view.
 
 ## Reusable presentation boundary
 

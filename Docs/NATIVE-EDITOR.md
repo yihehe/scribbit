@@ -59,6 +59,75 @@ flowchart LR
   that editor's manager, capture views weakly, and are removed on teardown/deinit.
 - Native undo, TextKit, clipboard and input handling are not forked or swizzled.
 
+## Restoring editing position
+
+### Cursor and focus
+
+`NoteModel` keeps one native UTF-16 selection range for the last successfully
+opened file, separate from source text. Close can release its outgoing buffer
+without erasing that range. It is RAM-only: quitting loses the position, and
+successfully selecting another URL resets it. Failed opens/saves/reloads do not
+erase it. Successful opens still read disk first; explicit reload also clamps
+the current position against its newly loaded source.
+
+The coordinator checkpoints selection notifications and completed text/history
+changes. These checkpoints do not publish SwiftUI changes or scan the document.
+Synchronization and live marked-text notifications do not replace the checkpoint;
+Save/Close accept composition through `unmarkText` before checkpointing its final
+selection. A monotonically advancing open/reload revision distinguishes a restore
+request from a chrome update, even when source bytes happen to be unchanged.
+Recreating the editor after preview also restores the selection.
+
+`TextSelection.clamped` bounds offsets without overflowing, floors a caret inside
+a composed character to its beginning, and expands a partial selection to whole
+characters. It does not diff/remap offsets through external edits. Only actual
+source replacement clears native history; restoring a selection alone does not.
+After reveal/layout the controller preserves a restored viewport, or shows the
+native selection if no valid viewport is available.
+Both menu-open and completed hover-open activate the panel and make the editor
+first responder at its restored selection. This lets typing resume without a
+click that would otherwise relocate the caret. Hover entry still requires its
+250 ms dwell and a fresh eligibility check after reading disk. Losing activation
+closes an unpinned note even if no typing/click occurred after hovering.
+There is no delayed focus timer or custom mouse handling.
+
+### Independent viewport restoration
+
+Cursor and viewport are separate state: scrolling to read need not move a caret.
+Before Save/Close the controller captures the clip-view origin before accepting
+composition; editor teardown also captures it when entering preview. There is no
+scroll observer, per-scroll document scan, polling, or published SwiftUI update.
+
+On successful close the existing serial file worker computes a SHA-256 fingerprint
+of the displayed/saved UTF-8 source using Apple's CryptoKit. Only this 32-byte
+fingerprint, selection and scroll origin survive hidden source release. Each open
+still reads disk and fingerprints that fresh source on the worker. Matching file
+URL and fingerprint permit viewport restoration; changed bytes, a different file,
+or a new app instance discard it. Same-length external edits and canonically equal
+but byte-different Unicode also invalidate it. Failed operations keep the existing
+position. Explicit reload preserves the viewport only for identical source.
+
+`NoteTextView` owns a one-shot pending origin applied during native layout, after
+TextKit lays out the document and AppKit constrains the origin to valid bounds.
+This also supports preview recreation. Focus preserves the current viewport rather
+than unconditionally scrolling the caret into view again. No repeating callback
+locks the scroll position: subsequent editing and scrolling remain AppKit-owned.
+Resized displays/viewports may clamp the remembered pixel offset; this is not a
+semantic line anchor. Read-only Markdown preview has no separate saved viewport.
+
+```mermaid
+flowchart LR
+    Native[Native selection / committed edit] --> Position[One RAM range in model]
+    Close[Successful close] --> Release[Release hidden source only]
+    Open[Open / explicit reload] --> Disk[Fresh disk source]
+    Disk --> Clamp[Clamp range to UTF-16 character boundaries]
+    Position --> Clamp
+    Clamp --> Restore[Restore native selection]
+    Disk --> Match{Same file and source fingerprint}
+    Match -->|yes| Viewport[Restore saved viewport within current bounds]
+    Match -->|no| Caret[Scroll restored caret into view]
+```
+
 ## Regression tests and the event-boundary finding
 
 Pure tests cover tabs/spaces/mixed indentation, line boundaries, no-ops,

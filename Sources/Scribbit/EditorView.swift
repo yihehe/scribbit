@@ -20,7 +20,11 @@ struct NoteView: View {
                         .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(18)
                 }
             } else {
-                NativeEditor(text: $model.text)
+                NativeEditor(text: $model.text, selection: model.editorSelection,
+                             selectionRevision: model.selectionRevision,
+                             selectionChanged: model.rememberEditorSelection,
+                             scrollOrigin: model.editorScrollOrigin,
+                             scrollChanged: model.rememberEditorScrollOrigin)
             }
             // Recovery never lives inside a collapsed disclosure.
             if let error = model.error {
@@ -97,6 +101,11 @@ struct NoteView: View {
 
 struct NativeEditor: NSViewRepresentable {
     @Binding var text: String
+    var selection: NSRange?
+    var selectionRevision = 0
+    var selectionChanged: (NSRange) -> Void = { _ in }
+    var scrollOrigin: CGPoint?
+    var scrollChanged: (CGPoint) -> Void = { _ in }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NoteTextView.scrollableTextView()
@@ -131,6 +140,7 @@ struct NativeEditor: NSViewRepresentable {
     }
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
         guard let editor = scroll.documentView as? NSTextView else { return }
+        coordinator.parent.scrollChanged(scroll.contentView.bounds.origin)
         coordinator.stopObservingHistory()
         editor.isEditable = false
         editor.breakUndoCoalescing()
@@ -140,6 +150,7 @@ struct NativeEditor: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: NativeEditor
         private var lastModelText: String?
+        private var restoredRevision: Int?
         private var isSynchronizing = false
         private var historyObservers: [NSObjectProtocol] = []
         init(_ parent: NativeEditor) { self.parent = parent }
@@ -168,17 +179,31 @@ struct NativeEditor: NSViewRepresentable {
         func synchronize(_ value: String, into editor: NSTextView) {
             // A chrome-only SwiftUI update must not overwrite AppKit's preedit
             // buffer, which can differ from the last committed model value.
-            if let lastModelText, lastModelText.utf8.elementsEqual(value.utf8) { return }
+            let textChanged = lastModelText.map { !$0.utf8.elementsEqual(value.utf8) } ?? true
+            let restore = parent.selection != nil && restoredRevision != parent.selectionRevision
+            guard textChanged || restore else { return }
             isSynchronizing = true
             defer { isSynchronizing = false }
-            let selection = editor.selectedRange()
-            editor.unmarkText()
-            editor.string = value
-            let location = min(selection.location, value.utf16.count)
-            editor.setSelectedRange(NSRange(location: location,
-                length: min(selection.length, value.utf16.count - location)))
-            editor.undoManager?.removeAllActions()
+            let selection = restore ? parent.selection! : editor.selectedRange()
+            if textChanged {
+                (editor as? NoteTextView)?.restoreViewport(nil)
+                editor.unmarkText()
+                editor.string = value
+                editor.undoManager?.removeAllActions()
+            }
+            editor.setSelectedRange(TextSelection.clamped(selection, in: value))
+            if restore { editor.scrollRangeToVisible(editor.selectedRange()) }
+            if restore { (editor as? NoteTextView)?.restoreViewport(parent.scrollOrigin) }
+            restoredRevision = parent.selectionRevision
             lastModelText = value
+        }
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let editor = notification.object as? NSTextView else { return }
+            rememberSelection(editor)
+        }
+        private func rememberSelection(_ editor: NSTextView) {
+            guard !isSynchronizing, !editor.hasMarkedText() else { return }
+            parent.selectionChanged(editor.selectedRange())
         }
         func textDidChange(_ notification: Notification) {
             guard let editor = notification.object as? NSTextView else { return }
@@ -190,6 +215,7 @@ struct NativeEditor: NSViewRepresentable {
             if !parent.text.utf8.elementsEqual(editor.string.utf8) {
                 parent.text = editor.string
             }
+            rememberSelection(editor)
         }
     }
 }
