@@ -65,6 +65,14 @@ as unbound under `set -u`, unlike newer Bash versions. The wrapper therefore
 builds optional arguments with positional parameters, retaining strict error
 handling without requiring a shell upgrade. Fixtures stay under `.build`.
 
+`HoverDelayTests` covers the 100 ms default, 0–1000 ms bounds, 50 ms
+quantization, invalid/nonfinite inputs, labels and independence from exit/motion
+timing. `HoverSettingsTests` uses RAM-only settings for write normalization,
+preference independence and lifecycle retention. The native harness requires
+`HOVER_SETTINGS_SMOKE_PASS`: configured delayed opening, pending-work replacement,
+pointer-exit cancellation and preserving explicit-close suppression, including
+zero-delay opening and cancellation before queued zero-delay work runs.
+
 Swift Testing covers lifecycle and model boundaries, actual coordinated temporary
 files, and pure hover/geometry logic. Fixtures and coverage outputs live under
 `.build`. Tests do not register login items or open a real selected user file.
@@ -125,8 +133,9 @@ These are not claimed as passed by unit tests or screenshots.
 
 | Check | Steps | Expected result |
 | --- | --- | --- |
-| Actual notch hover | Move into notch from another app, linger 250 ms | Editor opens below camera; no permission prompt |
-| Accidental entry | Cross trigger quickly and leave | No editor |
+| Actual notch hover | Move into notch from another app, linger for configured delay | Editor opens below camera; default 100 ms; no permission prompt |
+| Hover delay preference | Set Hover to open to 0 ms, 50 ms, 500 ms and 1000 ms; close/reenter; quit/relaunch | Entry wait changes and persists; animation and 180 ms exit behavior do not change |
+| Accidental entry | At a nonzero delay, cross the trigger before its dwell completes | No editor; 0 ms intentionally skips the dwell filter |
 | Reentry suppression | Open, Escape with pointer still in trigger | Stays hidden until leave and reenter |
 | Alternative open | Use menu-bar Open Note / VoiceOver | Same selected file opens |
 | Bottom disclosure | Toggle using chevron and Cmd-,; edit/undo/select before and after | Default collapsed, no top header, same source/selection/undo, viewport restored on collapse |

@@ -4,7 +4,6 @@ import CoreGraphics
 /// Damped oscillator sampled for Core Animation. Scribbit's motion settings
 /// and timing behavior are documented in Docs/NOTCH-UX.md.
 public enum NotchMotion {
-    public static let hoverDelay = 0.25
     public static let exitDelay = 0.18
     public static let revealDuration = 0.45
     public static let departureDuration = 0.16

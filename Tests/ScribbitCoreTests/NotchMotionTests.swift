@@ -9,7 +9,6 @@ struct NotchMotionTests {
         #expect(NotchMotion.Axis(start: 32, end: 512, horizontal: false).duration == 0.38)
         #expect(NotchMotion.Axis(start: 660, end: 200, horizontal: true).duration == 0.30)
         #expect(NotchMotion.Axis(start: 512, end: 32, horizontal: false).duration == 0.26)
-        #expect(NotchMotion.hoverDelay == 0.25)
         #expect(NotchMotion.exitDelay == 0.18)
     }
     @Test func testExpansionOvershootsButNeverMoreThanTwelvePoints() {

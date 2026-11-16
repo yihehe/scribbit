@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         settings = AppSettings(isolated: isolated)
         super.init()
         model.animationSpeed = settings.animationSpeed
+        model.hoverDelay = settings.hoverDelay
     }
     private var panel: NotePanel!
     private var presenter: NotchPresenter!
@@ -88,7 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             close: { [weak self] in Task { await self?.closeNote() } },
             saveCopy: { [weak self] in Task { await self?.saveCopy() } },
             reload: { [weak self] in Task { await self?.confirmReload() } },
-            speedChanged: { [weak self] rate in self?.setAnimationSpeed(rate) }))
+            speedChanged: { [weak self] rate in self?.setAnimationSpeed(rate) },
+            hoverDelayChanged: { [weak self] delay in self?.setHoverDelay(delay) }))
         presenter = NotchPresenter(panel: panel, content: content)
         presenter.animationSpeed = settings.animationSpeed
         panel.setAccessibilityLabel("Scribbit editor")
@@ -211,15 +213,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let candidate = target(at: self.pointerLocation)
         if candidate != hover.target { dwell?.cancel(); dwell = nil }
         guard hover.move(to: candidate), let candidate else { return }
+        scheduleDwell(for: candidate)
+    }
+    private func scheduleDwell(for candidate: Int) {
+        dwell?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.hover.canOpen(candidate),
+            guard let self else { return }
+            self.dwell = nil
+            guard self.hover.canOpen(candidate),
                   self.target(at: self.pointerLocation) == candidate,
                   NSScreen.screens.indices.contains(candidate) else { return }
             let screen = NSScreen.screens[candidate]
             Task { await self.openNote(on: screen, fromHover: true) }
         }
         dwell = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + NotchMotion.hoverDelay, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + model.hoverDelay, execute: work)
     }
     private func trackOpenPointer() {
         guard !presenter.isTransitioning else { return }
@@ -483,6 +491,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         presenter.animationSpeed = settings.animationSpeed
         updateMenuStates()
     }
+    private func setHoverDelay(_ delay: Double) {
+        let normalized = HoverDelay.normalized(delay)
+        guard model.hoverDelay != normalized else { return }
+        settings.hoverDelay = normalized
+        model.hoverDelay = settings.hoverDelay
+        // Restart only an already-pending entry, never reset HoverGate: resetting
+        // it would erase explicit-close suppression while still over the notch.
+        let candidate = dwell == nil ? nil : hover.target
+        dwell?.cancel(); dwell = nil
+        guard !panel.isVisible, !presentingDialog, !trackingMenu, !model.isBusy, !closing,
+              let candidate, hover.canOpen(candidate),
+              target(at: pointerLocation) == candidate else { return }
+        scheduleDwell(for: candidate)
+    }
     @objc private func selectAnimationSpeed(_ item: NSMenuItem) {
         if let rate = item.representedObject as? Double { setAnimationSpeed(rate) }
     }
@@ -526,7 +548,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func about() {
         guard !presentingDialog else { return }
-        showError("Scribbit", "Hover at the top center of any display for 250 ms. Edits save on Done, Escape, outside click, app deactivation, sleep, or normal quit. Every new opening reads the file again.\n\nUTF-8 text only, up to 2 MiB. Markdown preview supports inline formatting. No network, telemetry, polling, or Accessibility permission.\n\nIf a save fails, the editor stays open. Force Quit and power loss cannot save unsaved edits.")
+        showError("Scribbit", "Hover at the top center of any display for \(HoverDelay.label(model.hoverDelay)). Change Hover to open in the bottom controls. Edits save on Done, Escape, outside click, app deactivation, sleep, or normal quit. Every new opening reads the file again.\n\nUTF-8 text only, up to 2 MiB. Markdown preview supports inline formatting. No network, telemetry, polling, or Accessibility permission.\n\nIf a save fails, the editor stays open. Force Quit and power loss cannot save unsaved edits.")
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !presentingDialog, !model.isBusy else { return .terminateCancel }
@@ -685,6 +707,7 @@ extension AppDelegate {
         testPointer = nil
         try await runSelectionChecks(file: file, display: display)
         try await runViewportChecks(file: file, display: display)
+        try await runHoverSettingsChecks(display: display)
         print("HOVER_SMOKE_PASS: dwell, exit, reentry cancellation, pin, save-on-exit, conflict retention, close-during-open")
         print("SHELL_SMOKE_PASS: bookmark, open, close-save, disk refresh, conflict retention, indicator lifecycle")
     }
@@ -838,6 +861,60 @@ extension AppDelegate {
             }
             try await Task.sleep(nanoseconds: 5_000_000)
         }
+    }
+    private func runHoverSettingsChecks(display: NSScreen) async throws {
+        func check(_ value: Bool, _ message: String) throws {
+            if !value { throw NSError(domain: "HoverSettingsSmoke", code: 1,
+                                     userInfo: [NSLocalizedDescriptionKey: message]) }
+        }
+        let trigger = geometry(display).trigger
+        let inside = CGPoint(x: trigger.midX, y: trigger.midY)
+        let outside = CGPoint(x: display.frame.minX + 30, y: display.frame.minY + 30)
+        testPointer = outside; pointerMoved()
+        setHoverDelay(1)
+        testPointer = inside; pointerMoved()
+        let oldDwell = dwell
+        setHoverDelay(0.8)
+        try check(oldDwell != nil && oldDwell?.isCancelled == true && dwell != nil && dwell !== oldDwell,
+                  "Changing hover delay did not cancel and replace a pending dwell")
+        try check(settings.hoverDelay == model.hoverDelay && HoverDelay.label(model.hoverDelay) == "800 ms",
+                  "Hover delay setting and model did not stay synchronized")
+        // A 100/250 ms hard-coded deadline would open before this point.
+        try await Task.sleep(nanoseconds: 350_000_000)
+        try check(!model.isOpen && presenter.phase == .hidden,
+                  "Controller ignored the configured longer hover delay")
+        let changedDwell = dwell
+        testPointer = outside; pointerMoved()
+        try check(changedDwell?.isCancelled == true && dwell == nil,
+                  "Leaving the trigger did not cancel the configured dwell")
+        setHoverDelay(HoverDelay.defaultValue)
+        testPointer = inside; pointerMoved()
+        try await waitForSmoke { self.model.isOpen && self.presenter.phase == .expanded }
+        _ = await closeNote()
+        setHoverDelay(HoverDelay.range.lowerBound)
+        testPointer = inside; pointerMoved()
+        try check(dwell == nil && !model.isOpen,
+                  "Changing hover delay erased close-until-exit suppression")
+        testPointer = outside; pointerMoved()
+        // Zero removes the dwell, but still queues guarded work. Leaving before
+        // that work runs must cancel it rather than open a stale hover request.
+        try check(model.hoverDelay == 0 && settings.hoverDelay == 0,
+                  "Zero hover delay was not retained by settings and model")
+        testPointer = inside; pointerMoved()
+        let zeroDwell = dwell
+        testPointer = outside; pointerMoved()
+        try check(zeroDwell != nil && zeroDwell?.isCancelled == true && dwell == nil && !model.isOpen,
+                  "Zero-delay hover bypassed pointer-exit cancellation")
+        testPointer = inside; pointerMoved()
+        try await waitForSmoke { self.model.isOpen && self.presenter.phase == .expanded }
+        _ = await closeNote()
+        pointerMoved()
+        try check(dwell == nil && !model.isOpen,
+                  "Zero-delay hover bypassed explicit-close suppression")
+        testPointer = outside; pointerMoved()
+        testPointer = nil
+        setHoverDelay(HoverDelay.defaultValue)
+        print("HOVER_SETTINGS_SMOKE_PASS: persisted model synchronization, configurable deadline, pending cancellation/restart, zero-delay opening and cancellation, pointer exit, close suppression")
     }
 
 }

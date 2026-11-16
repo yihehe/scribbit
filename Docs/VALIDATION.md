@@ -1,5 +1,44 @@
 # Validation record
 
+## Configurable hover opening delay — November 15, 2026
+
+Entry dwell defaults to **100 ms**, down from 250 ms. The bottom disclosure's
+**Hover to open** slider selects **0–1000 ms in 50 ms steps**, persisted through
+`AppSettings.hoverDelay`. Zero removes the wait, not file loading, animation or
+pointer eligibility checks. Nonfinite values fall back to the default; finite
+values are bounded and rounded. No third-party dependency or runtime service
+was added.
+
+| Check | Result / ignored local evidence |
+| --- | --- |
+| Final PR-base unit/filesystem/resource suite | **97 tests in 12 suites passed**; `build/hover-pr-prep/tests.log` |
+| Final PR-base release build and strict signature | Passed; `build/hover-pr-prep/build.log` |
+| Earlier zero-option unit suite | **97 tests in 12 suites passed**; `build/hover-settings-zero/tests.log` |
+| Earlier isolated GUI with 50 ms minimum | **GUI_SMOKE_PASS**, including `HOVER_SETTINGS_SMOKE_PASS`; `build/hover-settings/gui.log` |
+| Zero-option GUI attempt | Stopped at the existing native Tab assertion before hover checks; **not passed**; `build/hover-settings-zero/gui.log` |
+| Added zero-delay GUI cases | Opening, cancellation before queued work runs, and explicit-close suppression; compiled but not reached in the interrupted run |
+| Physical timing and actual preference quit/relaunch cycle | Manual acceptance not independently recorded |
+
+The PR is based on the merged cursor/focus/scroll implementation; only hover
+configuration is changed. The settings-popup feature is excluded. Changing a
+pending delay cancels and restarts only eligible work, without resetting
+`HoverGate` or bypassing close-until-exit suppression. Exit delay and animation
+clocks are unchanged.
+
+Tests use disposable files, RAM-only settings and app-local events. The zero-delay
+candidate was launched with user approval. No further GUI run is included during
+PR preparation, while the separate settings-popup candidate is under manual
+evaluation.
+
+Reproduce with host file-coordination and GUI permissions where required:
+
+```sh
+Scripts/test.sh
+APP_PATH="$PWD/build/hover-pr-prep/Scribbit.app" Scripts/build-app.sh
+APP_PATH="$PWD/build/hover-pr-prep/Scribbit.app" Scripts/gui-smoke.sh native "$PWD/build/hover-pr-prep/smoke"
+git diff --check
+```
+
 ## Restore editing position — November 15, 2026
 
 Reopening restores the last file's caret/selection and focuses the native editor
