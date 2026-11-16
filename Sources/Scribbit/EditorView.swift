@@ -10,6 +10,7 @@ struct NoteView: View {
     let saveCopy: () -> Void
     let reload: () -> Void
     var speedChanged: (Double) -> Void = { _ in }
+    var hoverDelayChanged: (Double) -> Void = { _ in }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -67,6 +68,16 @@ struct NoteView: View {
                             .accessibilityLabel("Animation speed")
                         Text(AnimationSpeed.label(model.animationSpeed))
                             .font(.caption.monospacedDigit()).frame(width: 34, alignment: .trailing)
+                    }
+                    HStack(spacing: 10) {
+                        Text("Hover to open").font(.caption)
+                        Slider(value: Binding(get: { model.hoverDelay }, set: { value in
+                            hoverDelayChanged(HoverDelay.normalized(value))
+                        }), in: HoverDelay.range, step: HoverDelay.step)
+                            .accessibilityLabel("Hover delay before opening")
+                            .accessibilityIdentifier("hoverDelaySlider")
+                        Text(HoverDelay.label(model.hoverDelay))
+                            .font(.caption.monospacedDigit()).frame(width: 62, alignment: .trailing)
                     }
                     HStack {
                         Text(model.preview ? "Read-only preview · inline Markdown" : "UTF-8 · ⌘S to save")

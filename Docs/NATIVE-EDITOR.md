@@ -87,8 +87,9 @@ native selection if no valid viewport is available.
 Both menu-open and completed hover-open activate the panel and make the editor
 first responder at its restored selection. This lets typing resume without a
 click that would otherwise relocate the caret. Hover entry still requires its
-250 ms dwell and a fresh eligibility check after reading disk. Losing activation
-closes an unpinned note even if no typing/click occurred after hovering.
+configured dwell (100 ms by default) and a fresh eligibility check after reading
+disk. Losing activation closes an unpinned note even if no typing/click occurred
+after hovering.
 There is no delayed focus timer or custom mouse handling.
 
 ### Independent viewport restoration

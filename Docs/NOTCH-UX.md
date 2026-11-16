@@ -23,7 +23,7 @@ Changing the rate during motion only affects subsequent transitions.
 | Content arrival | 0.45 s fade, opacity held at zero for first 35%; scale 0.86 to 1 about content top-center, cubic timing control points 0.22, 1, 0.36, 1 |
 | Departure | Outgoing source remains visible, fading for 0.16 s while the shape contracts; text is released only after dismissal completes |
 | Shape geometry | Shoulder capped at 14 pt, lower radius capped at 28 pt; native circular arcs |
-| Hover entry / exit | 250 ms dwell / 180 ms exit delay; reentry cancels dismissal |
+| Hover entry / exit | Configurable 0–1000 ms dwell in 50 ms steps, default 100 ms; fixed 180 ms exit delay; reentry cancels dismissal |
 | Focus | Menu and completed hover openings activate the panel and focus the editor at the restored selection; type without clicking |
 | Pin | Keeps the note open across pointer exit, outside clicks, and app deactivation; Done/Escape/normal quit still save and close |
 | Working-surface holds | Menus, dialogs, file I/O, and active pointer drags inhibit hover dismissal |
@@ -43,7 +43,7 @@ this exact profile or a ready-made notch presentation component.
 
 ```mermaid
 flowchart LR
-    Event[Mouse event] --> Intent[250 ms dwell / 180 ms exit intent]
+    Event[Mouse event] --> Intent[Configured entry dwell / 180 ms exit intent]
     Intent --> Session[Read fresh source or save dirty source]
     Session -->|success| Presenter[NotchPresenter]
     Session -->|save failure| Keep[Keep expanded editor and error]
@@ -55,6 +55,11 @@ flowchart LR
 
 - `AnimationSpeed` normalizes untrusted persisted rates and scales durations. `AppSettings`
   persists the speed; the presenter snapshots it at transition start.
+- `HoverDelay` validates the independent entry dwell in seconds. `AppSettings`
+  persists it; the controller schedules one cancellable work item per entry.
+  Changing a pending delay restarts that entry's full dwell only while its
+  target is still eligible. It never resets `HoverGate` or its close-until-exit
+  suppression. Exit timing, motion clocks and Reduce Motion are unchanged.
 - `NotchGeometry.panelFrame` is a top-attached reservation, including spring
   overshoot. The hosting view is laid out once inside that reservation.
 - `NotchContour` generates the shared shape for animation, hit-testing, screenshots,

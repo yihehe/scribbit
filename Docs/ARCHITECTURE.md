@@ -4,7 +4,7 @@
 
 | Component | Responsibility | Must not do |
 | --- | --- | --- |
-| `NotchGeometry`, `HoverGate`, `NotchMotion`, `NotchContour`, `AnimationSpeed` | Pure attached geometry, spring samples, contour and hover policy | Touch windows, disk, or preferences |
+| `NotchGeometry`, `HoverGate`, `HoverDelay`, `NotchMotion`, `NotchContour`, `AnimationSpeed` | Pure attached geometry, spring samples, contour and hover policy | Touch windows, disk, or preferences |
 | `NoteStore` / `DiskNoteStore` | Bounded UTF-8 reads, coordinated compare-and-atomic-replace | Own UI or discard buffers |
 | `NoteSession` | Baseline bytes, editable text, open/save/close/reload transitions | Hide editor after failed save |
 | `SessionWorker` | Serial ownership of synchronous session and disk transactions | Access UI state |
@@ -17,7 +17,7 @@
 ```mermaid
 flowchart LR
     Mouse[Mouse move event] --> Gate[HoverGate and cached entry intent]
-    Gate --> Dwell[One cancellable 250 ms delay]
+    Gate --> Dwell[One cancellable configured delay, default 100 ms]
     Dwell --> App[AppDelegate]
     Menu[Menu / key / lifecycle action] --> App
     App --> Model[MainActor NoteModel]

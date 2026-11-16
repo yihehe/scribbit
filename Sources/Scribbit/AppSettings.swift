@@ -29,5 +29,9 @@ final class AppSettings {
         get { AnimationSpeed.normalized(value("animationSpeed") as? Double ?? 1) }
         set { set(AnimationSpeed.normalized(newValue), key: "animationSpeed") }
     }
+    var hoverDelay: Double {
+        get { HoverDelay.normalized(value("hoverDelay") as? Double ?? HoverDelay.defaultValue) }
+        set { set(HoverDelay.normalized(newValue), key: "hoverDelay") }
+    }
 
 }

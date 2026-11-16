@@ -9,7 +9,7 @@ Shift-Tab command; there are no third-party runtime packages.
 
 A small native macOS menu-bar app for one file-backed note, expanding directly
 from the notch with a spring-animated black silhouette. Move the pointer to
-the notch for 250 ms, start typing, and press **Done** or **Escape** to save and hide it.
+the notch for 100 ms by default, start typing, and press **Done** or **Escape** to save and hide it.
 On displays without a notch, use the top-center 120-point strip.
 
 **Requirements:** macOS 14 or later; Swift 6 / modern Xcode Command Line Tools to
@@ -40,7 +40,7 @@ target, not the symlink itself. Create does not truncate an existing file.
 
 | Interaction | Result |
 | --- | --- |
-| Hover over notch/top-center strip for 250 ms | Fresh disk read, then editor opens below the camera |
+| Hover over notch/top-center strip for the configured delay | Fresh disk read, then editor opens below the camera; default 100 ms |
 | Menu bar → Open Note | Same behavior; keyboard/accessibility-friendly fallback |
 | Choose Note File… / Cmd-O | Saves the current note first, then selects another file |
 | Done / Cmd-Return / Escape / Cmd-W | Saves dirty content, then hides |
@@ -53,6 +53,7 @@ target, not the symlink itself. Create does not truncate an existing file.
 | Pin button | Keep the working surface open across pointer exit/outside click/app switching |
 | Bottom chevron / Cmd-, | Expand/collapse file, pin, preview, Done, status, and animation controls; collapsed on each open |
 | Animation Speed menu / bottom slider | Persisted 0.5×–2× playback rate in 0.25× steps; 1× keeps the reference motion profile |
+| Hover to open slider in bottom controls | Persisted 0–1000 ms entry delay in 50 ms steps; default 100 ms |
 | Eye / pencil button | Read-only inline Markdown preview / plain source editing |
 | Launch at Login | Enables/disables macOS Service Management registration |
 | Show Frog in Left Notch Wing | Optional frog-and-pencil mark inside a black extension connected to the camera; off by default |
@@ -83,8 +84,15 @@ outside clicks/app deactivation, but Done/Escape and normal quit still save/clos
 Use **Animation Speed** in the menu or the slider inside the bottom controls.
 0.5× is half-speed, 2× is double-speed. Shape, content growth/fade, and completion
 use one playback rate without changing the spring's bounce or overshoot. A change
-during animation applies to the next transition. Hover entry/exit delays are not
-changed. Reduce Motion retains its fixed 140 ms fade and no spring/growth.
+during animation applies to the next transition. Hover delay is independent:
+use **Hover to open** in the bottom controls to choose 0–1000 ms, in 50 ms
+steps. The default is 100 ms. Choose 0 ms to remove the entry wait; file loading
+and the opening animation still take their normal time. The setting affects only
+time spent over the trigger before opening, not the animation or the fixed
+180 ms exit delay. Changing a pending dwell cancels it and starts a fresh full
+delay if the pointer remains eligible;
+it never bypasses the leave-and-reenter requirement after explicitly closing.
+Reduce Motion retains its fixed 140 ms fade and no spring/growth.
 
 The pencil's left wing shares one continuous contour with the camera cutout;
 opening/collapse interpolate its left-shifted center as well as its size. It is
@@ -148,7 +156,7 @@ manual profiling instructions.
 The app has no analytics, telemetry, cloud service, or automatic uploads.
 Development outputs and test fixtures stay inside the project directory.
 At runtime the installed app stores **only a file-location
-bookmark, login-offer flag, indicator preference, and animation speed** in macOS UserDefaults
+bookmark, login-offer flag, indicator preference, animation speed, and hover delay** in macOS UserDefaults
 under `com.stephenhe.Scribbit`; note contents live in the selected file and RAM,
 plus any explicit Save a Copy destination. macOS also owns login registration.
 No Accessibility, Input Monitoring, or Screen Recording permission is requested:

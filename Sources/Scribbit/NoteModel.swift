@@ -34,6 +34,7 @@ final class NoteModel: ObservableObject {
     @Published var pinned = false
     @Published var controlsExpanded = false
     @Published var animationSpeed = 1.0
+    @Published var hoverDelay = HoverDelay.defaultValue
     @Published private(set) var isBusy = false
     @Published private(set) var isOpen = false
     @Published private(set) var selectionRevision = 0
