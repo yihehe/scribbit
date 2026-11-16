@@ -35,6 +35,7 @@ final class NoteModel: ObservableObject {
     @Published var controlsExpanded = false
     @Published var animationSpeed = 1.0
     @Published var hoverDelay = HoverDelay.defaultValue
+    @Published private(set) var showsWelcome = true
     @Published private(set) var isBusy = false
     @Published private(set) var isOpen = false
     @Published private(set) var selectionRevision = 0
@@ -68,6 +69,7 @@ final class NoteModel: ObservableObject {
             text = loaded.text
             baselineText = loaded.text
             filename = url.lastPathComponent
+            showsWelcome = false
             controlsExpanded = false
             preview = false
             isOpen = true
@@ -109,6 +111,10 @@ final class NoteModel: ObservableObject {
         preview = false
         pinned = false
         controlsExpanded = false
+    }
+    func showWelcomeIfClosed() {
+        guard !isOpen, !isBusy, text.isEmpty else { return }
+        showsWelcome = true
     }
     func save() async {
         guard !isBusy, isOpen else { return }

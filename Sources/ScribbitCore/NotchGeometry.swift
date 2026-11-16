@@ -53,6 +53,14 @@ public struct NotchGeometry: Equatable {
                       width: size.width, height: size.height)
     }
 
+    /// NSWindowDelegate sheet attachment uses window coordinates. Keep its top
+    /// below the same camera-safe boundary as note content, on any display.
+    public func sheetAttachmentRect(in windowFrame: CGRect, proposed: CGRect) -> CGRect {
+        let safeY = screen.maxY - contentTop - windowFrame.minY
+        return CGRect(x: proposed.minX, y: max(0, min(proposed.minY, safeY)),
+                      width: proposed.width, height: 0)
+    }
+
 }
 
 /// One dwell per entry; closing while still over the notch cannot reopen it.

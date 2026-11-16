@@ -44,9 +44,24 @@
   cancellable transition task owns completion; phase/visibility settle in one
   place, never in superseded callers after an await. Preserve generation guards
   and replacement-aware waits. The lifecycle GUI regressions protect this.
-- Keep file/actions/status in the bottom disclosure, collapsed per open. Error
-  recovery must stay visible outside it. Toggling must retain native selection
-  and undo. Cmd-Return must work even while Done is hidden.
+- Keep file information/full selectable path, pin/preview, and the settings gear
+  inside the bottom disclosure, collapsed per open. The collapsed footer contains
+  only the chevron. Other preferences/file actions live in a native transient
+  popup; do not recreate a menu-bar NSStatusItem. Command-comma uses the visible
+  chevron as a fallback anchor when the gear is collapsed, not a hidden anchor or
+  delayed layout retry. Keep native NSApp.mainMenu responder/keyboard actions.
+  Error recovery stays visible outside the disclosure.
+  Toggling information/settings must retain native selection and undo.
+  Cmd-Return must work even while Done is hidden.
+- Pin/Preview are togglable icon buttons, with selected appearance and accessible
+  state—not preference checkboxes. About contains only the app icon, bundle name,
+  version, and dismissal; do not put usage/help instructions in it.
+- The popup must hold automatic dismissal while in use. Escape dismisses it
+  before closing the note; explicit file/close/quit actions keep save-first
+  behavior. The welcome surface must expose Choose/New and advertise expandable
+  controls/Command-comma with no file open. Do not replace outgoing text with
+  welcome before collapse. About is a native sheet parented at the panel's level;
+  sheet attachment derives from camera-safe geometry, never a fixed screen point.
 - Preserve the left resting wing shared contour and its asymmetric animation
   endpoints. Animation speed scales one whole transition clock, never hover
   deadlines or the fixed Reduce Motion fade. Validate persisted rates.
@@ -83,7 +98,7 @@
   50 ms steps. Zero removes the wait, not queued-work eligibility checks.
   Keep it independent of exit/animation clocks. Delay changes may restart pending
   work but must not reset `HoverGate` or close-until-exit suppression.
-  Isolated settings must remain RAM-only.
+  The slider lives in the settings popup. Isolated settings remain RAM-only.
 - File pickers and alerts inhibit automatic close. Always balance scoped access.
 - Prefer changes with deterministic unit/integration tests for credible behavior.
   Keep GUI/login acceptance separate from mocked or core test results.

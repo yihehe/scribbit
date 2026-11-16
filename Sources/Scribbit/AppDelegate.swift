@@ -9,7 +9,7 @@ final class NotePanel: NSPanel {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation, NSPopoverDelegate, NSWindowDelegate {
     private let model = NoteModel()
     private let isolated: Bool
     private let settings: AppSettings
@@ -26,7 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private var openedByHover = false
     private var pointerInsideSurface = true
     private var exitWork: DispatchWorkItem?
-    private var statusItem: NSStatusItem!
+    private let popupState = SettingsPopupState()
+    private let settingsPopover = NSPopover()
+    private var settingsPresented = false
     private var indicators: [NSPanel] = []
     private var monitors: [Any] = []
     private var observers: [NSObjectProtocol] = []
@@ -65,11 +67,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             settings.didOfferLogin = true
             setLogin(enabled: true, reportError: true)
         }
-        if !isolated, bookmark == nil { Task { await chooseFile() } }
+        if !isolated, bookmark == nil { Task { await openNote() } }
     }
 
     private func applicationDeactivated() {
-        guard !presentingDialog, !trackingMenu, NSApp.modalWindow == nil, !model.pinned else { return }
+        guard !presentingDialog, !trackingMenu, !settingsPresented,
+              NSApp.modalWindow == nil, !model.pinned else { return }
         Task { await closeNote() }
     }
 
@@ -84,13 +87,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         panel.hasShadow = true
         panel.hidesOnDeactivate = false
         panel.isMovable = false
+        panel.delegate = self
         let content = NSHostingView(rootView: NoteView(model: model,
             choose: { [weak self] in Task { await self?.chooseFile() } },
-            close: { [weak self] in Task { await self?.closeNote() } },
             saveCopy: { [weak self] in Task { await self?.saveCopy() } },
             reload: { [weak self] in Task { await self?.confirmReload() } },
-            speedChanged: { [weak self] rate in self?.setAnimationSpeed(rate) },
-            hoverDelayChanged: { [weak self] delay in self?.setHoverDelay(delay) }))
+            create: { [weak self] in Task { await self?.createFile() } },
+            showSettings: { [weak self] button in self?.showSettings(from: button) }))
         presenter = NotchPresenter(panel: panel, content: content)
         presenter.animationSpeed = settings.animationSpeed
         panel.setAccessibilityLabel("Scribbit editor")
@@ -100,16 +103,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let main = NSMenu()
         let appRoot = NSMenuItem()
         let app = NSMenu()
+        app.addItem(item("Settings…", #selector(settingsAction), key: ","))
+        app.addItem(.separator())
         app.addItem(item("Quit Scribbit", #selector(quit), key: "q"))
         appRoot.submenu = app
         main.addItem(appRoot)
         let fileRoot = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
         let file = NSMenu(title: "File")
         file.addItem(item("Choose Note…", #selector(chooseAction), key: "o"))
+        file.addItem(item("Create Note File…", #selector(createAction)))
         file.addItem(item("Save", #selector(saveAction), key: "s"))
         file.addItem(item("Close Note", #selector(closeAction), key: "w"))
         file.addItem(item("Done", #selector(closeAction), key: "\r"))
-        file.addItem(item("Toggle Note Controls", #selector(toggleControlsAction), key: ","))
+        file.addItem(item("Toggle Note Information", #selector(toggleControlsAction)))
         fileRoot.submenu = file
         main.addItem(fileRoot)
         let editRoot = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
@@ -127,32 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         main.addItem(editRoot)
         NSApp.mainMenu = main
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = BrandAssets.menuBar
-        statusItem.button?.toolTip = "Scribbit — hover at the top center of a display"
-        let menu = NSMenu()
-        menu.addItem(item("Open Note", #selector(openAction)))
-        menu.addItem(item("Choose Note File…", #selector(chooseAction)))
-        menu.addItem(item("Create Note File…", #selector(createAction)))
-        menu.addItem(.separator())
-        menu.addItem(item("Launch at Login", #selector(toggleLogin)))
-        menu.addItem(item("Show Frog in Left Notch Wing", #selector(toggleIndicator)))
-        let speed = NSMenuItem(title: "Animation Speed", action: nil, keyEquivalent: "")
-        let rates = NSMenu(title: "Animation Speed")
-        for (index, rate) in (2...8).map({ Double($0) / 4 }).enumerated() {
-            let choice = item(AnimationSpeed.label(rate), #selector(selectAnimationSpeed(_:)))
-            choice.tag = index
-            choice.representedObject = rate
-            rates.addItem(choice)
-        }
-        speed.submenu = rates
-        menu.addItem(speed)
-        menu.addItem(item("About Scribbit", #selector(about)))
-        menu.addItem(.separator())
-        menu.addItem(item("Quit Scribbit", #selector(quit), key: "q"))
-        menu.delegate = self
-        statusItem.menu = menu
-        updateMenuStates()
+        for menu in [app, file, edit] { menu.delegate = self }
     }
     private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
@@ -162,18 +143,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     func menuWillOpen(_ menu: NSMenu) {
         trackingMenu = true
         exitWork?.cancel(); exitWork = nil
-        updateMenuStates()
+        refreshPopupState()
     }
     func menuDidClose(_ menu: NSMenu) {
         trackingMenu = false
         if panel.isVisible { trackOpenPointer() }
     }
-    private func updateMenuStates() {
-        statusItem.menu?.items.first(where: { $0.action == #selector(toggleLogin) })?.state =
-            SMAppService.mainApp.status == .enabled ? .on : .off
-        statusItem.menu?.items.first(where: { $0.action == #selector(toggleIndicator) })?.state = indicatorEnabled ? .on : .off
-        for choice in statusItem.menu?.items.first(where: { $0.title == "Animation Speed" })?.submenu?.items ?? [] {
-            choice.state = (choice.representedObject as? Double) == settings.animationSpeed ? .on : .off
+    private func refreshPopupState() {
+        popupState.indicator = indicatorEnabled
+        popupState.launchAtLogin = !isolated && SMAppService.mainApp.status == .enabled
+        popupState.loginRequiresApproval = !isolated && SMAppService.mainApp.status == .requiresApproval
+    }
+    private func controlButton(_ identifier: String, in view: NSView?) -> NSButton? {
+        guard let view else { return nil }
+        if let button = view as? NSButton, button.identifier?.rawValue == identifier { return button }
+        return view.subviews.lazy.compactMap { self.controlButton(identifier, in: $0) }.first
+    }
+    private func settingsAnchor() -> NSButton? {
+        if model.controlsExpanded, let gear = controlButton("openSettings", in: panel.contentView) {
+            return gear
+        }
+        return controlButton("toggleNoteInformation", in: panel.contentView)
+    }
+    private func showSettings(from anchor: NSView) {
+        guard !model.isBusy, !closing, !presentingDialog, !presenter.isTransitioning else { return }
+        if settingsPresented { settingsPopover.performClose(nil); return }
+        rememberViewport(in: panel.contentView)
+        refreshPopupState()
+        settingsPopover.behavior = .transient
+        settingsPopover.delegate = self
+        settingsPopover.contentViewController = NSHostingController(rootView: SettingsPopupView(
+            model: model, settings: popupState, canChangeLogin: !isolated,
+            choose: { [weak self] in self?.chooseAction() },
+            create: { [weak self] in self?.createAction() },
+            save: { [weak self] in self?.saveAction() },
+            saveCopy: { [weak self] in
+                self?.settingsPopover.performClose(nil)
+                Task { await self?.saveCopy() }
+            },
+            close: { [weak self] in self?.closeAction() },
+            loginChanged: { [weak self] in self?.toggleLogin() },
+            indicatorChanged: { [weak self] in self?.toggleIndicator() },
+            speedChanged: { [weak self] rate in self?.setAnimationSpeed(rate) },
+            hoverDelayChanged: { [weak self] delay in self?.setHoverDelay(delay) },
+            about: { [weak self] in self?.about() },
+            quit: { [weak self] in self?.quit() }))
+        settingsPresented = true
+        exitWork?.cancel(); exitWork = nil
+        settingsPopover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
+    }
+    @objc private func settingsAction() {
+        Task {
+            if !panel.isVisible { await openNote() }
+            panel.contentView?.layoutSubtreeIfNeeded()
+            if let button = settingsAnchor() { showSettings(from: button) }
+        }
+    }
+    func popoverDidClose(_ notification: Notification) {
+        settingsPresented = false
+        settingsPopover.contentViewController = nil
+        guard !closing, !presentingDialog, panel.isVisible else { return }
+        if !isolated, !NSApp.isActive { applicationDeactivated() }
+        else {
+            if model.isOpen, panel.isKeyWindow { focusEditor(in: panel.contentView) }
+            trackOpenPointer()
         }
     }
 
@@ -197,6 +230,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if let monitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .leftMouseUp, .leftMouseDown, .rightMouseDown, .keyDown], handler: { [weak self] event in
             guard let self else { return event }
             if [.mouseMoved, .leftMouseDragged, .leftMouseUp].contains(event.type) { self.pointerMoved() }
+            if event.type == .keyDown, event.keyCode == 53, self.settingsPresented {
+                self.settingsPopover.performClose(nil); return nil
+            }
             if event.type == .keyDown, event.keyCode == 53, self.panel.isVisible, !self.presentingDialog {
                 Task { await self.closeNote() }; return nil
             }
@@ -208,7 +244,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
     private func pointerMoved() {
-        guard !presentingDialog, !trackingMenu, !model.isBusy, !closing else { return }
+        guard !presentingDialog, !trackingMenu, !settingsPresented, !model.isBusy, !closing else { return }
         if panel.isVisible { trackOpenPointer(); return }
         let candidate = target(at: self.pointerLocation)
         if candidate != hover.target { dwell?.cancel(); dwell = nil }
@@ -237,12 +273,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         pointerInsideSurface = inside
         guard changed || exitWork == nil,
               NotchInteraction.closesOnExit(openedByHover: openedByHover, pinned: model.pinned, inside: inside,
-                heldByUI: presentingDialog || trackingMenu, busy: model.isBusy || closing,
+                heldByUI: presentingDialog || trackingMenu || settingsPresented, busy: model.isBusy || closing,
                 dragging: NSEvent.pressedMouseButtons != 0) else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, NotchInteraction.closesOnExit(openedByHover: self.openedByHover,
                 pinned: self.model.pinned, inside: self.presenter.contains(self.pointerLocation),
-                heldByUI: self.presentingDialog || self.trackingMenu, busy: self.model.isBusy || self.closing,
+                heldByUI: self.presentingDialog || self.trackingMenu || self.settingsPresented,
+                busy: self.model.isBusy || self.closing,
                 dragging: NSEvent.pressedMouseButtons != 0) else { return }
             Task { await self.closeNote() }
         }
@@ -253,8 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
 
     private func outsideClick() {
-        if statusItem.button?.window?.frame.contains(self.pointerLocation) == true { return }
-        guard panel.isVisible, !model.pinned, !presentingDialog, !trackingMenu, NSApp.modalWindow == nil,
+        guard panel.isVisible, !model.pinned, !presentingDialog, !trackingMenu, !settingsPresented, NSApp.modalWindow == nil,
               !presenter.contains(self.pointerLocation) else { return }
         Task { await closeNote() }
     }
@@ -272,7 +308,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         settings.bookmark = data
     }
     private func openNote(on screen: NSScreen? = nil, fromHover: Bool = false) async {
-        guard !presentingDialog, !model.isBusy, !closing, presenter?.isTransitioning != true else { return }
+        guard !presentingDialog, !settingsPresented, !model.isBusy, !closing,
+              presenter?.isTransitioning != true else { return }
         if panel.isVisible {
             openedByHover = false
             exitWork?.cancel(); exitWork = nil
@@ -281,9 +318,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             return
         }
         do {
-            guard let url = try resolveFile() else { await chooseFile(); return }
+            guard let url = try resolveFile() else {
+                await revealPanel(on: screen, fromHover: fromHover)
+                return
+            }
             await openFile(url, on: screen, fromHover: fromHover)
-        } catch { showError("Cannot locate the selected note", error.localizedDescription + " Choose the file again from the menu bar.") }
+        } catch {
+            showError("Cannot locate the selected note", error.localizedDescription + " Choose the file again from Settings.")
+            await revealPanel(on: screen, fromHover: fromHover)
+        }
     }
     private func openFile(_ selected: URL, on screen: NSScreen? = nil, fromHover: Bool = false) async {
         guard !closing, presenter.isTransitioning == false else { return }
@@ -292,11 +335,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         guard await model.open(url) else {
             if scoped { selected.stopAccessingSecurityScopedResource() }
             showError("Cannot open note", model.error ?? "Unknown error")
+            await revealPanel(on: screen, fromHover: fromHover)
             return
         }
         accessedURL = scoped ? selected : nil
         do { try remember(selected) }
         catch { model.error = "The file opened, but its location could not be remembered: \(error.localizedDescription)" }
+        await revealPanel(on: screen, fromHover: fromHover)
+    }
+    private func revealPanel(on screen: NSScreen? = nil, fromHover: Bool) async {
         let destination = screen ?? NSScreen.screens.first(where: { $0.frame.contains(self.pointerLocation) }) ?? NSScreen.main
         if fromHover, let destination {
             let current = geometry(destination)
@@ -308,6 +355,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 return
             }
         }
+        if !model.isOpen { model.showWelcomeIfClosed() }
         presenter.showsRestingWing = indicatorEnabled
         if let destination { presenter.configure(geometry(destination)) }
         indicators.forEach { $0.orderOut(nil) }
@@ -322,18 +370,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     private func focusEditor(in view: NSView?) {
         guard let view else { return }
-        if let text = view as? NSTextView {
+        if let text = view as? NoteTextView {
             let origin = text.enclosingScrollView?.contentView.bounds.origin
             panel.makeFirstResponder(text)
-            if model.editorScrollOrigin != nil, let origin, let editor = text as? NoteTextView {
-                editor.restoreViewport(origin)
-                editor.layoutSubtreeIfNeeded()
+            if model.editorScrollOrigin != nil, let origin {
+                text.restoreViewport(origin)
+                text.layoutSubtreeIfNeeded()
             } else {
                 text.scrollRangeToVisible(text.selectedRange())
             }
             return
         }
         for child in view.subviews { focusEditor(in: child) }
+    }
+    private func rememberViewport(in view: NSView?) {
+        guard let view else { return }
+        if let editor = view as? NoteTextView, let scroll = editor.enclosingScrollView {
+            model.rememberEditorScrollOrigin(scroll.contentView.bounds.origin)
+            return
+        }
+        for child in view.subviews { rememberViewport(in: child) }
     }
     private func commitComposition(in view: NSView?) {
         guard let view else { return }
@@ -351,10 +407,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     @discardableResult private func closeNote() async -> Bool {
         guard !model.isBusy, !closing else { return false }
-        guard model.isOpen else { return true }
+        guard model.isOpen || panel.isVisible else { return true }
         guard !presentingDialog else { return false }
         closing = true
         defer { closing = false }
+        settingsPopover.performClose(nil)
         exitWork?.cancel(); exitWork = nil
         await presenter.waitUntilSettled()
         commitComposition(in: panel.contentView)
@@ -435,6 +492,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     private func showError(_ title: String, _ detail: String) {
         presentingDialog = true
+        settingsPopover.performClose(nil)
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = title
@@ -451,9 +509,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 showError("Allow Scribbit at login", "Approve Scribbit in System Settings → General → Login Items. The app cannot approve itself.")
             }
         } catch {
-            if reportError { showError("Could not change Launch at Login", error.localizedDescription + " Install the bundled app in Applications, then try the menu option again.") }
+            if reportError { showError("Could not change Launch at Login", error.localizedDescription + " Install the bundled app in Applications, then try the setting again.") }
         }
-        updateMenuStates()
+        refreshPopupState()
     }
     @objc private func toggleLogin() {
         guard !isolated else { return }
@@ -463,7 +521,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     @objc private func toggleIndicator() {
         settings.indicator = !indicatorEnabled
-        updateMenuStates(); refreshIndicators()
+        refreshPopupState(); refreshIndicators()
     }
     private func refreshIndicators() {
         indicators.forEach { $0.orderOut(nil) }; indicators.removeAll()
@@ -489,7 +547,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         settings.animationSpeed = rate
         model.animationSpeed = settings.animationSpeed
         presenter.animationSpeed = settings.animationSpeed
-        updateMenuStates()
     }
     private func setHoverDelay(_ delay: Double) {
         let normalized = HoverDelay.normalized(delay)
@@ -500,13 +557,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         // it would erase explicit-close suppression while still over the notch.
         let candidate = dwell == nil ? nil : hover.target
         dwell?.cancel(); dwell = nil
-        guard !panel.isVisible, !presentingDialog, !trackingMenu, !model.isBusy, !closing,
-              let candidate, hover.canOpen(candidate),
+        guard !panel.isVisible, !presentingDialog, !trackingMenu, !settingsPresented,
+              !model.isBusy, !closing, let candidate, hover.canOpen(candidate),
               target(at: pointerLocation) == candidate else { return }
         scheduleDwell(for: candidate)
-    }
-    @objc private func selectAnimationSpeed(_ item: NSMenuItem) {
-        if let rate = item.representedObject as? Double { setAnimationSpeed(rate) }
     }
     @objc private func toggleControlsAction() { model.controlsExpanded.toggle() }
     private func screensChanged() {
@@ -517,9 +571,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         refreshIndicators()
     }
-    @objc private func openAction() { Task { await openNote() } }
-    @objc private func chooseAction() { Task { await chooseFile() } }
-    @objc private func createAction() { Task { await createFile() } }
+    @objc private func chooseAction() {
+        settingsPopover.performClose(nil)
+        Task { await chooseFile() }
+    }
+    @objc private func createAction() {
+        settingsPopover.performClose(nil)
+        Task { await createFile() }
+    }
     @objc private func saveAction() {
         commitComposition(in: panel.contentView)
         Task { await model.save() }
@@ -547,8 +606,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc private func closeAction() { Task { await closeNote() } }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func about() {
-        guard !presentingDialog else { return }
-        showError("Scribbit", "Hover at the top center of any display for \(HoverDelay.label(model.hoverDelay)). Change Hover to open in the bottom controls. Edits save on Done, Escape, outside click, app deactivation, sleep, or normal quit. Every new opening reads the file again.\n\nUTF-8 text only, up to 2 MiB. Markdown preview supports inline formatting. No network, telemetry, polling, or Accessibility permission.\n\nIf a save fails, the editor stays open. Force Quit and power loss cannot save unsaved edits.")
+        guard !presentingDialog, panel.isVisible else { return }
+        presentingDialog = true
+        settingsPopover.performClose(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        let identity = AboutInfo(infoDictionary: Bundle.main.infoDictionary)
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.icon = NSApp.applicationIconImage
+        alert.messageText = identity.name
+        alert.informativeText = identity.versionText
+        alert.addButton(withTitle: "Close")
+        // A standalone app-modal alert can sit below the status-bar-level
+        // notch panel. Use native sheet parenting/order at the panel's level.
+        alert.window.level = panel.level
+        alert.beginSheetModal(for: panel) { [weak self] _ in
+            guard let self else { return }
+            self.presentingDialog = false
+            if self.model.isOpen, self.panel.isKeyWindow { self.focusEditor(in: self.panel.contentView) }
+            self.trackOpenPointer()
+        }
+    }
+    func window(_ window: NSWindow, willPositionSheet sheet: NSWindow, using rect: NSRect) -> NSRect {
+        guard window === panel, let geometry = presenter.geometry else { return rect }
+        return geometry.sheetAttachmentRect(in: window.frame, proposed: rect)
+    }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        Task { await openNote() }
+        return true
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !presentingDialog, !model.isBusy else { return .terminateCancel }
@@ -556,6 +641,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) {
+        settingsPopover.performClose(nil)
         dwell?.cancel()
         exitWork?.cancel()
         monitors.forEach(NSEvent.removeMonitor)
@@ -573,32 +659,63 @@ extension AppDelegate {
     func runIsolatedShellChecks(file: URL) async throws {
         precondition(isolated)
         applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        updateMenuStates()
+        refreshPopupState()
         defer {
+            settingsPopover.performClose(nil)
             panel.orderOut(nil)
             indicators.forEach { $0.orderOut(nil) }
-            NSStatusBar.system.removeStatusItem(statusItem)
             applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
         }
         func check(_ value: Bool, _ message: String) throws {
             if !value { throw NSError(domain: "ShellSmoke", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
         }
-        try check(statusItem.button?.image === BrandAssets.menuBar,
-                  "Menu bar did not use the bundled frog template")
         try check(BrandAssets.notch.isTemplate && BrandAssets.notch.representations.count == 2,
                   "Notch template is missing its scale representations")
         if Bundle.main.bundleURL.pathExtension == "app" {
             try check(BrandAssets.resourceBundle.bundleURL.path.hasPrefix(Bundle.main.bundleURL.path + "/Contents/Resources/"),
                       "Brand assets were loaded from build cache instead of the app")
         }
+        await openNote()
+        try check(panel.isVisible && !model.isOpen && model.showsWelcome,
+                  "No-file launch did not reveal a safe welcome surface")
+        try check(controlButton("openSettings", in: panel.contentView) == nil &&
+                  settingsAnchor()?.identifier?.rawValue == "toggleNoteInformation",
+                  "Collapsed welcome state did not expose the visible chevron fallback")
+        settingsAction()
+        try await waitForSmoke { self.settingsPopover.isShown && self.settingsPresented }
+        try check(settingsPopover.contentViewController != nil,
+                  "Welcome surface settings popup was inaccessible")
+        settingsPopover.performClose(nil)
+        _ = await closeNote()
         await openFile(file)
         try check(panel.isVisible && model.isOpen, "Shell open failed")
         try check(bookmark != nil, "Isolated bookmark could not be created")
         try check(EditorProbe.find(in: panel.contentView!)?.view is NoteTextView,
                   "Shell did not use the native note editor")
-        try check(!statusItem.menu!.items.contains(where: { $0.title == "Editor Engine" }),
-                  "Retired editor-engine selector is still present")
+        let settingsItem = NSApp.mainMenu?.items.first?.submenu?.items.first(where: { $0.action == #selector(settingsAction) })
+        try check(settingsItem?.keyEquivalent == ",", "Settings lost the native Command-comma action")
         guard let editor = EditorProbe.find(in: panel.contentView!) else { throw CocoaError(.featureUnsupported) }
+        let popupSource = model.text
+        let popupSelection = editor.selectedRange()
+        let popupHistory = editor.undoManager
+        model.controlsExpanded = true
+        try await waitForSmoke { self.controlButton("openSettings", in: self.panel.contentView) != nil }
+        guard let anchor = controlButton("openSettings", in: panel.contentView) else { throw CocoaError(.featureUnsupported) }
+        anchor.performClick(nil)
+        try await waitForSmoke { self.settingsPopover.isShown && self.settingsPresented }
+        try check(model.editorScrollOrigin != nil, "Settings did not checkpoint the native viewport")
+        outsideClick()
+        applicationDeactivated()
+        try await Task.sleep(nanoseconds: 220_000_000)
+        try check(model.isOpen && !closing && panel.isVisible, "Settings interaction dismissed the note")
+        settingsPopover.performClose(nil)
+        try await waitForSmoke { !self.settingsPresented }
+        try check(EditorProbe.find(in: panel.contentView!)?.view === editor.view &&
+                  model.text == popupSource && editor.selectedRange() == popupSelection &&
+                  editor.undoManager === popupHistory, "Settings popup replaced editor, source, selection or undo")
+        model.controlsExpanded = false
+        try await waitForSmoke { self.controlButton("openSettings", in: self.panel.contentView) == nil }
+        print("SETTINGS_POPUP_SMOKE_PASS: collapsed Command-comma/visible chevron anchor, expanded gear, hold during popup, editor/selection/history retention")
         let beforeComposition = model.text
         editor.setSelectedRange(NSRange(location: beforeComposition.utf16.count, length: 0))
         editor.view.setMarkedText("か", selectedRange: NSRange(location: 1, length: 0),
@@ -640,8 +757,6 @@ extension AppDelegate {
         setAnimationSpeed(1.75)
         try check(settings.animationSpeed == 1.75 && model.animationSpeed == 1.75 && presenter.animationSpeed == 1.75,
                   "Animation speed setting was not synchronized")
-        let rates = statusItem.menu?.items.first(where: { $0.title == "Animation Speed" })?.submenu?.items ?? []
-        try check(rates.filter { $0.state == .on }.count == 1, "Speed menu did not reflect selected rate")
         setAnimationSpeed(1)
         model.text = "Shell edited note"
         let closed = await closeNote()
@@ -680,6 +795,20 @@ extension AppDelegate {
         pointerMoved()
         try await waitForSmoke { self.presenter.phase == .expanded && self.model.isOpen }
         try check(openedByHover, "Dwell did not produce hover-opened state")
+        settingsAction()
+        try await waitForSmoke { self.settingsPresented && self.settingsPopover.isShown }
+        testPointer = outside; pointerMoved()
+        try await Task.sleep(nanoseconds: 240_000_000)
+        try check(model.isOpen && panel.isVisible, "Hover exit dismissed the note while settings were open")
+        testPointer = inside
+        guard let escape = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: settingsPopover.contentViewController?.view.window?.windowNumber ?? panel.windowNumber,
+            context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
+            isARepeat: false, keyCode: 53) else { throw CocoaError(.featureUnsupported) }
+        NSApp.postEvent(escape, atStart: false)
+        try await waitForSmoke { !self.settingsPresented }
+        try check(model.isOpen && panel.isVisible, "Escape closed the note instead of just settings")
         model.text = "Hover exit saved this"
         testPointer = outside; pointerMoved()
         try await Task.sleep(nanoseconds: 60_000_000)

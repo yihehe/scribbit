@@ -12,6 +12,7 @@
 | `NativeEditor`, `NoteTextView`, `NoteView` | Stable native editing, preview, and collapsible bottom controls | Convert formatted text back to source |
 | `NotchPresenter` | Fixed-window silhouette animation and content arrival/departure | Save files, clear unsaved buffers, use private filters |
 | `AppSettings` | Production preferences or RAM-only isolated-test settings | Write production preferences from GUI smoke |
+| `SettingsPopupView`, `SettingsPopupState` | Transient settings UI and current system-preference snapshot | Register login, persist settings, or replace the native editor directly |
 | `AppDelegate` | Panels, menu commands, mouse events, dialogs, bookmarks, login lifecycle | Bypass model save before hiding/quit |
 
 ```mermaid
@@ -36,7 +37,9 @@ stateDiagram-v2
     Hidden --> Reading: hover dwell or Open
     Reading --> Expanding: valid UTF-8 snapshot and eligible pointer
     Expanding --> Editing: shape and content arrive
-    Reading --> Hidden: read fails and alert
+    Hidden --> Welcome: no selected file
+    Reading --> Welcome: read fails and recoverable alert
+    Welcome --> Reading: choose/create file
     Editing --> Saving: Done / Escape / outside / deactivate / quit
     Saving --> Collapsing: successful dirty save or clean no-op
     Collapsing --> Hidden: fade completes and buffer is released
@@ -108,9 +111,12 @@ handles Escape only. When closed, reentry is suppressed until the pointer leaves
 the trigger. A dwell callback rechecks both display availability and pointer
 position; a hover read rechecks eligibility again before showing; screen reconfiguration cancels pending dwell.
 
-Dialogs inhibit automatic close. The optional left-wing indicator uses the same contour and ignores mouse events;
+Dialogs and the transient settings popup inhibit automatic close. The optional left-wing indicator uses the same contour and ignores mouse events;
 the same mouse monitor includes its contour in the hover target. It is removed
-when the editor opens. The persistent status item is the accessibility fallback.
+when the editor opens. No NSStatusItem is allocated. Reopening the running app
+through Finder/Spotlight reveals the surface as a non-hover alternative. The
+expanded gear and collapsed chevron are native accessible buttons;
+Command-comma uses the normal application menu.
 Display-change notifications reconstruct indicators and reposition a visible
 editor without touching the current text.
 
@@ -135,16 +141,55 @@ Multiple notes/tabs, full Markdown semantics, WYSIWYG, cloud sync, automatic
 merging, background autosave, a global keyboard shortcut, document history,
 App Store sandbox distribution, and Windows/Linux support are out of scope.
 
-## Bottom controls and speed
+## Information section and settings popup
 
 Disclosure state belongs to `NoteModel` and resets on each successful file open.
-Only the controls are conditional SwiftUI subviews: the editor remains at the
+Only the information/control section is a conditional SwiftUI subview: the editor remains at the
 same structural position, retaining selection/undo when its viewport resizes.
 Error recovery stays outside the disclosure. Cmd-Return is registered in the
 native File menu rather than depending on the visibility of the Done button.
 
+The expanded-section gear anchors one native transient `NSPopover`, whose
+SwiftUI content observes the note model and a small `SettingsPopupState` snapshot.
+The controller alone owns persistence, file actions, Service Management, and
+presentation. The section also contains filename, selectable full path, and
+pin/preview icon buttons; those editing modes are not preference checkboxes.
+Their selected fill/tint and accessible On/Off state show the current mode.
+Command-comma can use the always-visible native chevron as a fallback anchor when
+collapsed, so it needs neither a hidden gear nor asynchronous layout retry.
+The controller refreshes indicator/login state when the popup opens and after
+changes. `NSApp.mainMenu` remains for standard editing/keyboard actions; it is not
+a persistent system menu-bar status item.
+
+Popup presentation holds pointer-exit, outside-click and app-deactivation close.
+Escape dismisses the popup before closing the note. Explicit Done/Choose/Create/
+Quit paths dismiss it before continuing their normal save-first lifecycle.
+When no file has been selected, a read-only welcome surface exposes Choose/New
+and guidance for expanded controls/Command-comma. `NoteModel.showsWelcome` changes at successful open or when
+the controller explicitly reveals a closed welcome surface. Clearing hidden text
+does not replace the native editor: a normal close/reopen retains its identity.
+The departure animation never substitutes welcome content for the outgoing note.
+
+### About sheet ordering and camera safety
+
+The notch panel is deliberately status-bar-level. The previous About path used
+an unparented `NSAlert.runModal`, whose normal/modal-panel ordering can fall below
+that elevated surface and has no camera-safe attachment point. About now uses
+`beginSheetModal(for:)`, explicitly at its parent panel's level. Native sheet
+parenting keeps the dialog ordered with the note rather than behind it.
+The alert content is minimal: native application icon, display name and version
+from the packaged bundle, and Close. It contains no usage/help dump or custom
+screen-position offsets. The existing camera-safe attachment is unchanged.
+
+The panel's `NSWindowDelegate` sheet-position callback delegates to
+`NotchGeometry.sheetAttachmentRect`. It maps the same screen/content-top boundary
+used by the note into current window coordinates, preserving a lower native
+attachment when supplied. It does not assume a primary display, positive screen
+origin, fixed camera height, or fixed screen point. Selectable path/error text
+is never mistaken for the editable note when restoring first responder.
+
 `AppSettings.animationSpeed` is normalized on both read/write. One controller
-method synchronizes settings, observed model, presenter, and menu checkmarks.
+method synchronizes settings, observed model, presenter, and popup slider.
 The presenter snapshots the playback rate for the whole transition. The shape's
 sample values/key times are unchanged; its duration, content effects, and final
 completion delay are scaled together. Reduce Motion remains a fixed 140 ms fade.

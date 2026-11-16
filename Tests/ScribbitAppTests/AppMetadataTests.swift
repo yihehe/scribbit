@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import Scribbit
 
 struct AppMetadataTests {
     /// Read the resource that build-app.sh actually packages, not the test
@@ -28,5 +29,21 @@ struct AppMetadataTests {
         #expect(info["CFBundleIdentifier"] as? String == "com.stephenhe.Scribbit")
         #expect(info["LSUIElement"] as? Bool == true)
         #expect(info["LSMinimumSystemVersion"] as? String == "14.0")
+    }
+    @Test func aboutUsesThePackagedDisplayNameAndVersion() throws {
+        let about = AboutInfo(infoDictionary: try metadata())
+        #expect(about.name == "Scribbit")
+        #expect(about.version == "0.5.2")
+        #expect(about.versionText == "Version 0.5.2")
+    }
+    @Test func aboutOmitsBlankVersionWithoutAPlaceholderOrHelpDump() {
+        let about = AboutInfo(infoDictionary: [
+            "CFBundleDisplayName": " ",
+            "CFBundleName": " Scribbit ",
+            "CFBundleShortVersionString": "\n"
+        ])
+        #expect(about.name == "Scribbit")
+        #expect(about.version == nil && about.versionText.isEmpty)
+        #expect(AboutInfo(infoDictionary: nil).name == "Scribbit")
     }
 }

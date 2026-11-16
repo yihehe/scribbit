@@ -20,6 +20,44 @@ private final class TestStore: NoteStore {
 
 final class NoteModelTests {
     private let url = URL(fileURLWithPath: "/example/note.md")
+    @Test @MainActor func welcomeStateDoesNotReplaceOutgoingOrUnsavedEditor() async {
+        let store = TestStore()
+        let model = NoteModel(session: NoteSession(store: store))
+        #expect(model.showsWelcome)
+        store.failRead = true
+        _ = await model.open(url)
+        #expect(model.showsWelcome)
+        store.failRead = false
+        _ = await model.open(url)
+        #expect(!model.showsWelcome)
+        model.text = "unsaved"
+        store.failSave = true
+        _ = await model.close()
+        #expect(!model.showsWelcome && model.isOpen)
+        store.failSave = false
+        _ = await model.close(keepPresentation: true)
+        #expect(!model.showsWelcome)
+        #expect(model.text == "unsaved")
+        model.showWelcomeIfClosed()
+        #expect(!model.showsWelcome)
+        model.clearClosedPresentation()
+        #expect(!model.showsWelcome && model.text.isEmpty)
+        model.showWelcomeIfClosed()
+        #expect(model.showsWelcome)
+        _ = await model.open(url)
+        #expect(!model.showsWelcome)
+        model.showWelcomeIfClosed()
+        #expect(!model.showsWelcome)
+    }
+    @Test @MainActor func popupViewStateHasNoPreferencePersistence() {
+        let popup = SettingsPopupState()
+        #expect(!popup.indicator && !popup.launchAtLogin && !popup.loginRequiresApproval)
+        popup.indicator = true
+        popup.launchAtLogin = true
+        popup.loginRequiresApproval = true
+        let fresh = SettingsPopupState()
+        #expect(!fresh.indicator && !fresh.launchAtLogin && !fresh.loginRequiresApproval)
+    }
     @Test @MainActor func viewportSurvivesSavedEditsAndHiddenBufferRelease() async {
         let store = TestStore()
         let model = NoteModel(session: NoteSession(store: store))
