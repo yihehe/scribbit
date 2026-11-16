@@ -15,6 +15,7 @@ Run from the repository root:
 
 ```sh
 /bin/bash Tests/Scripts/test-runner.sh
+python3 -m unittest discover -s Tests/CI -v
 Scripts/test.sh
 Scripts/build-app.sh
 Scripts/coverage.sh
@@ -39,6 +40,10 @@ environment or substitute them for real hardware/input-method acceptance.
 
 GitHub Actions runs unit/filesystem tests and a signed build on macOS. It does
 not run interactive GUI tests, a login cycle, notarization or performance acceptance.
+It also packages successful builds as Actions artifacts with default retention.
+Only successful main pushes publish the rolling development prerelease; see
+[development builds](Docs/DEVELOPMENT-BUILDS.md). Do not locally publish with a
+real token as a test; the Python publisher suite uses an offline API double.
 
 ## Scope and safety
 

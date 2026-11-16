@@ -1,5 +1,26 @@
 # Validation record
 
+## Automatic development downloads — November 15, 2026
+
+Added default-retention Actions artifacts for successful builds and a separate,
+main-push-only publisher for one rolling development prerelease. App runtime,
+signing identity and launch/login behavior are unchanged.
+
+| Check | Result / ignored local evidence |
+| --- | --- |
+| Offline publisher suite | **16 tests passed**; `build/downloads-validation/publisher-tests.log` |
+| Existing app suite | **104 tests in 13 suites passed**; `build/downloads-validation/tests.log` |
+| Fresh signed release build | Passed; `build/downloads-validation/build.log` |
+| ZIP roundtrip | Extracted bundle strict signature, executable bytes/mode and commit/checksum metadata verified; `build/downloads-validation/package.log` |
+| Workflow checks | YAML syntax, write-job event/dependency guards, read-only build permissions, no artifact-retention override, and shell/whitespace checks passed |
+| Hosted Actions/publication | **Not run**; no release/tag or repository setting was mutated during development |
+
+Publisher tests use an in-memory API double and disposable project-local files.
+The rolling release requires mutable releases and permission to update the
+reserved `development` tag. The first hosted run and actual download on another
+Mac remain integration/manual acceptance. No GUI was launched or running app
+replaced by this change.
+
 ## Notch settings popup — November 15, 2026
 
 Replaced the persistent menu-bar item with a native settings popover. The bottom

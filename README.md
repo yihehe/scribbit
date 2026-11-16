@@ -3,7 +3,7 @@
 A lightweight macOS notepad tucked into your notch. Hover to capture a thought,
 then get back to work. Plain-text files, Markdown preview, and no cloud required.
 
-**Status:** Build from source (version 0.5.2). No notarized download or universal
+**Status:** Development builds / build from source (version 0.5.2). No notarized download or universal
 binary is available yet. Editing uses Apple's NSTextView with a small
 Shift-Tab command; there are no third-party runtime packages.
 
@@ -16,7 +16,28 @@ On displays without a notch, use the top-center 120-point strip.
 build. There are no third-party runtime packages, web views, network services, or account.
 The app and supplied CLT test-framework fallback require macOS 14. Builds target the current architecture.
 
-## Build and use
+## Development downloads
+
+[**Download the latest development build**](https://github.com/yihehe/scribbit/releases/download/development/Scribbit-macOS.zip)
+
+This link becomes available after the first successful `main` publication with
+the development-build workflow. One mutable **Development build** prerelease
+keeps the latest successful ZIP until it is replaced or deleted. Release notes
+identify its source commit, build, checksum and architecture.
+
+Each successful CI build also saves a commit/run-named **Actions artifact** using
+the repository's default retention. For older or branch/PR builds, open
+**Actions → Build and test → successful run → Artifacts** while signed in.
+Extract the artifact, then its `Scribbit-macOS.zip`, to obtain `Scribbit.app`.
+
+These are **ad-hoc-signed, unnotarized development builds**, not trusted public
+releases. macOS may block a downloaded app. They target the runner's architecture,
+not a universal binary; check the release notes before downloading. Developer ID
+signing, notarization and cross-machine acceptance are not provided by this CI.
+See [development-build management](Docs/DEVELOPMENT-BUILDS.md) for retention,
+permissions, prerequisites and recovery.
+
+## Build and use from source
 
 ```sh
 git clone https://github.com/yihehe/scribbit.git

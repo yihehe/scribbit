@@ -1,5 +1,14 @@
 # Testing and acceptance
 
+## Development-download automation
+
+Run `python3 -m unittest discover -s Tests/CI -v` for the offline publisher tests.
+They cover first publication, updates, stale runs, event/identity guards,
+checksum mismatch, immutable releases, API failures and rollback. They do not
+publish anything. Packaging verifies the extracted app's executable and signature.
+See [development builds](DEVELOPMENT-BUILDS.md) for the workflow and live-publication
+acceptance limits; no real-token publication is part of local testing.
+
 ## Native-editor gate
 
 The only editor is NSTextView plus NoteTextView's Shift-Tab command. There are
