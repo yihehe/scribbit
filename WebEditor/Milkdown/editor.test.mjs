@@ -91,6 +91,9 @@ function type(f, text) {
   );
 }
 function enter(f) {
+  return pressKey(f, "Enter");
+}
+function pressKey(f, key, modifiers = {}) {
   const v = f.api.view();
   let handled = false;
   v.someProp("handleKeyDown", (fn) => {
@@ -98,9 +101,10 @@ function enter(f) {
       fn(
         v,
         new f.win.KeyboardEvent("keydown", {
-          key: "Enter",
-          keyCode: 13,
+          key,
+          keyCode: { Enter: 13, Tab: 9, Backspace: 8, Delete: 46 }[key],
           bubbles: true,
+          ...modifiers,
         }),
       )
     ) {
@@ -109,6 +113,20 @@ function enter(f) {
     }
   });
   return handled;
+}
+function selectText(f, text, offset = 0) {
+  const v = f.api.view();
+  let position;
+  v.state.doc.descendants((node, pos) => {
+    if (node.isText && position === undefined && node.text.includes(text))
+      position = pos + node.text.indexOf(text) + offset;
+  });
+  assert.notEqual(position, undefined, `Missing fixture text: ${text}`);
+  v.dispatch(
+    v.state.tr.setSelection(
+      v.state.selection.constructor.near(v.state.doc.resolve(position)),
+    ),
+  );
 }
 test("empty notes and empty paragraphs have no placeholder prompt", async () => {
   for (const source of ["", "An existing paragraph\n"]) {
@@ -1082,4 +1100,334 @@ test("transaction JSON admission component timings exclude DOM and whole-app cla
       2,
     ) + "\n",
   );
+});
+
+test("lifting an ordered child into a bullet sibling saves despite stale visual marker metadata", async () => {
+  for (const source of [
+    "- one\n  1. two\n",
+    "- one\n\n  3. two\n",
+    "- [ ] one\n  1. [x] two\n",
+    "- [x] one\n  1. [ ] two\n",
+  ]) {
+    const f = await setup(source);
+    try {
+      assert.equal(f.loaded.accepted, true, JSON.stringify(f.loaded));
+      selectText(f, "two");
+      assert.equal(pressKey(f, "Tab", { shiftKey: true }), true);
+      const actual = f.api.documentJSON();
+      assert.equal(actual.content[0].type, "bullet_list");
+      assert.equal(actual.content[0].content[1].attrs.listType, "ordered");
+      const result = flush(f, "lift-into-bullet");
+      assert.equal(result.type, "snapshot", JSON.stringify(result));
+      const reopened = await setup(result.source);
+      try {
+        assert.equal(reopened.loaded.accepted, true);
+        const list = reopened.api.view().state.doc.firstChild;
+        assert.equal(list.type.name, "bullet_list");
+        assert.equal(list.childCount, 2);
+        assert.equal(list.child(0).textContent, "one");
+        assert.equal(list.child(1).textContent, "two");
+        const checks = [];
+        list.forEach((item) => checks.push(item.attrs.checked));
+        assert.deepEqual(
+          checks,
+          source.startsWith("- [ ]")
+            ? [false, true]
+            : source.startsWith("- [x]")
+              ? [true, false]
+              : [null, null],
+        );
+        assert.equal(Object.hasOwn(flush(reopened), "source"), false);
+        f.win.scribbit.unlock();
+        f.win.scribbit.undo();
+        const undone = flush(f, "undo-mixed-lift");
+        assert.equal(undone.type, "snapshot");
+        assert.equal(Object.hasOwn(undone, "source"), false); // Exact native baseline, no edited serialization.
+      } finally {
+        reopened.close();
+      }
+    } finally {
+      f.close();
+    }
+  }
+});
+
+test("marker normalization never hides order, checkbox, text, nesting, paragraph or custom-attribute loss", async () => {
+  const f = await setup("3. one\n4. two\n");
+  try {
+    const original = f.api.documentJSON();
+    const check = (mutate) => {
+      const changed = structuredClone(original);
+      mutate(changed);
+      assert.equal(f.api.sameExportDocument(changed, original), false);
+      assert.ok(f.api.exportDifference(changed, original));
+    };
+    check((doc) => {
+      doc.content[0].attrs.order = 7;
+    });
+    check((doc) => {
+      doc.content[0].content[1].attrs.checked = false;
+    });
+    check((doc) => {
+      doc.content[0].content[1].attrs.label = "custom-marker";
+    });
+    check((doc) => {
+      doc.content[0].content[1].attrs.listType = "custom-list";
+    });
+    check((doc) => {
+      doc.content[0].content[1].attrs.unrecognized = "keep";
+    });
+    check((doc) => {
+      doc.content[0].content[1].content[0].content[0].text = "changed";
+    });
+    check((doc) => {
+      doc.content[0].content[1].content.push({ type: "paragraph" });
+    });
+    check((doc) => {
+      doc.content[0].content.push({
+        type: "list_item",
+        attrs: {
+          label: "5.",
+          listType: "ordered",
+          checked: null,
+          spread: false,
+        },
+        content: [{ type: "paragraph" }],
+      });
+    });
+    check((doc) => {
+      doc.content[0].content[0].content.push({
+        type: "bullet_list",
+        attrs: { spread: false },
+        content: [doc.content[0].content.pop()],
+      });
+    });
+  } finally {
+    f.close();
+  }
+});
+
+test("actual public list commands, split/merge, indent/lift and checkbox UI remain saveable", async () => {
+  for (const source of [
+    "- one\n- two\n",
+    "* one\n* two\n",
+    "+ one\n+ two\n",
+    "3. one\n4. two\n",
+    "- [ ] one\n- [x] two\n",
+    "- **one** and `code`\n- [two](https://example.invalid)\n",
+  ])
+    for (const operation of [
+      "split",
+      "indent-lift",
+      "merge",
+      "empty-exit",
+      "checkbox",
+    ]) {
+      const f = await setup(source);
+      try {
+        assert.equal(f.loaded.accepted, true);
+        selectText(
+          f,
+          "two",
+          operation === "split" ? 1 : operation === "empty-exit" ? 3 : 0,
+        );
+        if (operation === "split") assert.equal(enter(f), true);
+        if (operation === "indent-lift") {
+          assert.equal(pressKey(f, "Tab"), true);
+          assert.equal(pressKey(f, "Tab", { shiftKey: true }), true);
+        }
+        if (operation === "merge") assert.equal(pressKey(f, "Backspace"), true);
+        if (operation === "empty-exit") {
+          assert.equal(enter(f), true);
+          assert.equal(enter(f), true);
+        }
+        if (operation === "checkbox" && source.startsWith("- [")) {
+          const target = f.api.view().dom.querySelectorAll(".label-wrapper")[1];
+          assert.ok(target);
+          target.dispatchEvent(
+            new f.win.MouseEvent("pointerdown", {
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+          assert.equal(
+            f.api.view().state.doc.firstChild.child(1).attrs.checked,
+            false,
+          );
+        }
+        const result = flush(f, operation);
+        assert.equal(
+          result.type,
+          "snapshot",
+          `${source} ${operation}: ${JSON.stringify(result)}`,
+        );
+      } finally {
+        f.close();
+      }
+    }
+  for (const [command, nodeName] of [
+    ["WrapInBulletList", "bullet_list"],
+    ["WrapInOrderedList", "ordered_list"],
+  ]) {
+    const f = await setup("one\n\ntwo\n");
+    try {
+      selectText(f, "two");
+      assert.equal(
+        f.api.crepe.editor.action((ctx) => ctx.get("commands").call(command)),
+        true,
+      );
+      assert.equal(f.api.view().state.doc.child(1).type.name, nodeName);
+      assert.equal(flush(f).type, "snapshot");
+    } finally {
+      f.close();
+    }
+  }
+});
+
+test("real trailing-indent loss stays blocked with content-free diagnostics and Undo recovery", async () => {
+  const fixture = "PRIVATE_TEST_FIXTURE";
+  const ordinary = await setup(`- ${fixture}\n- next\n`);
+  try {
+    selectText(ordinary, fixture, fixture.length);
+    assert.equal(pressKey(ordinary, "Tab"), true);
+    const saved = flush(ordinary, "ordinary-end-indent");
+    assert.equal(saved.type, "snapshot");
+    assert.ok(saved.source.includes("&#x20;"));
+    assert.equal(
+      ordinary.api.parse(saved.source).firstChild.firstChild.textContent,
+      fixture + "    ",
+    );
+  } finally {
+    ordinary.close();
+  }
+  const f = await setup(`- ${fixture}\n  next\n`);
+  try {
+    selectText(f, fixture, fixture.length);
+    assert.equal(pressKey(f, "Tab"), true);
+    const before = f.api.documentJSON();
+    const result = flush(f, "trailing-indent");
+    assert.equal(result.type, "flushError");
+    assert.match(result.message, /trailing-whitespace at \$\.content\[0\]/);
+    assert.match(
+      result.message,
+      /Remove the trailing spaces\/indentation or Undo/,
+    );
+    assert.equal(result.message.includes(fixture), false);
+    assert.deepEqual(f.api.documentJSON(), before);
+    assert.equal(f.api.view().editable, true);
+    f.win.scribbit.undo();
+    assert.equal(flush(f, "undo-indent").type, "snapshot");
+  } finally {
+    f.close();
+  }
+});
+
+test("seeded short public-key list edits either reopen safely or retain the guarded draft", async () => {
+  const outcomes = { snapshots: 0, retained: 0, handledKeys: 0 };
+  for (const source of [
+    "- one\n- two\n",
+    "3. one\n4. two\n",
+    "- [ ] one\n- [x] two\n",
+    "- one\n  1. two\n",
+    "1. one\n   - two\n",
+    "- **one** and `code`\n- [two](https://example.invalid)\n",
+  ])
+    for (let seed = 1; seed <= 4; seed++) {
+      const f = await setup(source);
+      let state = seed;
+      const random = (limit) => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state % limit;
+      };
+      try {
+        for (let step = 0; step < 18; step++) {
+          const v = f.api.view(),
+            positions = [];
+          v.state.doc.descendants((node, pos) => {
+            if (node.isText)
+              for (let offset = 0; offset <= node.text.length; offset++)
+                positions.push(pos + offset);
+          });
+          const position = positions.length
+            ? positions[random(positions.length)]
+            : 1;
+          v.dispatch(
+            v.state.tr.setSelection(
+              v.state.selection.constructor.near(v.state.doc.resolve(position)),
+            ),
+          );
+          const operation = [
+            "Enter",
+            "Tab",
+            "ShiftTab",
+            "Backspace",
+            "Delete",
+            "text",
+          ][random(6)];
+          if (operation === "text") type(f, "x");
+          else if (
+            pressKey(f, operation === "ShiftTab" ? "Tab" : operation, {
+              shiftKey: operation === "ShiftTab",
+            })
+          )
+            outcomes.handledKeys++;
+          const before = f.api.documentJSON();
+          const result = flush(f, `seed-${seed}-step-${step}`);
+          if (result.type === "snapshot") {
+            outcomes.snapshots++;
+            if (Object.hasOwn(result, "source"))
+              assert.ok(f.api.safeImport(result.source));
+          } else {
+            outcomes.retained++;
+            assert.match(
+              result.message,
+              /(?:text|attribute|structure|child-count|trailing-whitespace) at \$/,
+            );
+            assert.deepEqual(f.api.documentJSON(), before);
+          }
+          f.win.scribbit.unlock();
+          assert.equal(v.editable, true);
+        }
+      } finally {
+        f.close();
+      }
+    }
+  assert.ok(
+    outcomes.snapshots > 0 && outcomes.retained > 0 && outcomes.handledKeys > 0,
+  );
+  await writeFile(
+    "../../build/milkdown-seeded-list-outcomes.json",
+    JSON.stringify(outcomes, null, 2) + "\n",
+  );
+});
+
+test("splitting a restarted numbered list preserves both actual starting orders", async () => {
+  const f = await setup("3. one\n4. two\n\nseparator\n\n9. three\n10. four\n");
+  try {
+    assert.equal(f.loaded.accepted, true);
+    selectText(f, "three", 2);
+    assert.equal(enter(f), true);
+    const result = flush(f, "split-restarted-list");
+    assert.equal(result.type, "snapshot", JSON.stringify(result));
+    const reopened = await setup(result.source);
+    try {
+      assert.equal(reopened.loaded.accepted, true);
+      const lists = [];
+      reopened.api.view().state.doc.descendants((node) => {
+        if (node.type.name === "ordered_list") {
+          const items = [];
+          node.forEach((item) => items.push(item.textContent));
+          lists.push({ order: node.attrs.order, items });
+        }
+      });
+      assert.deepEqual(lists, [
+        { order: 3, items: ["one", "two"] },
+        { order: 9, items: ["th", "ree", "four"] },
+      ]);
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    f.close();
+  }
 });

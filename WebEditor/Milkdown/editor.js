@@ -42,11 +42,19 @@ const sameTree = (a, b) =>
   JSON.stringify(stable(a)) === JSON.stringify(stable(b));
 const emptyParagraph = (node) =>
   node?.type === "paragraph" && !node.content?.length;
-function layoutProjection(value) {
-  if (Array.isArray(value)) return value.map(layoutProjection);
+function layoutProjection(value, parent = null, index = 0) {
+  if (Array.isArray(value))
+    return value.map((entry) => layoutProjection(entry));
   if (!value || typeof value !== "object") return value;
   const result = Object.fromEntries(
-    Object.entries(value).map(([k, v]) => [k, layoutProjection(v)]),
+    Object.entries(value).map(([k, v]) => [
+      k,
+      k === "content" && Array.isArray(v)
+        ? v.map((child, childIndex) =>
+            layoutProjection(child, value, childIndex),
+          )
+        : layoutProjection(v),
+    ]),
   );
   // Spread changes Markdown spacing, not list text, nesting, order or checkbox state.
   if (
@@ -56,18 +64,101 @@ function layoutProjection(value) {
     result.attrs = { ...result.attrs };
     delete result.attrs.spread;
   }
+  // Pinned Milkdown stores a rendered marker on each item, but Markdown's list
+  // kind/start come from the containing list. Its public order-sync plugin does
+  // not clear a lifted ordered item's stale marker under a bullet parent.
+  // Derive ONLY recognized upstream marker metadata; never normalize checked,
+  // list order, nesting/content, or arbitrary/custom attributes.
+  if (
+    result.type === "list_item" &&
+    ["bullet_list", "ordered_list"].includes(parent?.type) &&
+    ["bullet", "ordered"].includes(result.attrs?.listType) &&
+    /^(?:•|\d+\.)$/.test(result.attrs?.label ?? "")
+  ) {
+    const ordered = parent.type === "ordered_list",
+      order = parent.attrs?.order ?? 1;
+    if (!ordered || (Number.isSafeInteger(order) && order >= 0)) {
+      result.attrs.listType = ordered ? "ordered" : "bullet";
+      result.attrs.label = ordered ? `${order + index}.` : "•";
+    }
+  }
   return result;
 }
-function sameExportDocument(document, reparsed) {
-  const left = layoutProjection(document),
-    right = layoutProjection(reparsed);
-  if (sameTree(left, right)) return true;
+function exportDifference(document, reparsed) {
+  let left = layoutProjection(document);
+  const right = layoutProjection(reparsed);
+  if (sameTree(left, right)) return null;
   // Pinned upstream docSchema explicitly omits ONE terminal empty typing area.
   // Never remove nested/list empty items, middle paragraphs or code whitespace.
-  if (left.type === "doc" && emptyParagraph(left.content?.at(-1)))
-    return sameTree({ ...left, content: left.content.slice(0, -1) }, right);
-  return false;
+  if (
+    left.type === "doc" &&
+    emptyParagraph(left.content?.at(-1)) &&
+    left.content.length === (right.content?.length ?? 0) + 1
+  )
+    left = { ...left, content: left.content.slice(0, -1) };
+  return firstDifference(left, right);
 }
+const safePathKeys = new Set([
+  "type",
+  "content",
+  "attrs",
+  "marks",
+  "text",
+  "order",
+  "checked",
+  "label",
+  "listType",
+  "level",
+  "language",
+  "href",
+  "title",
+  "isInline",
+  "align",
+  "colspan",
+  "rowspan",
+  "colwidth",
+  "id",
+]);
+function firstDifference(left, right, path = "$") {
+  if (sameTree(left, right)) return null;
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length)
+      return { category: "child-count", path: `${path}.length` };
+    for (let i = 0; i < left.length; i++) {
+      const difference = firstDifference(left[i], right[i], `${path}[${i}]`);
+      if (difference) return difference;
+    }
+  } else if (
+    left &&
+    right &&
+    typeof left === "object" &&
+    typeof right === "object"
+  ) {
+    for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) {
+      const difference = firstDifference(
+        left[key],
+        right[key],
+        `${path}.${safePathKeys.has(key) ? key : "field"}`,
+      );
+      if (difference) return difference;
+    }
+  }
+  let category = path.endsWith(".text")
+    ? "text"
+    : path.includes(".attrs.")
+      ? "attribute"
+      : "structure";
+  if (
+    category === "text" &&
+    typeof left === "string" &&
+    typeof right === "string" &&
+    left.replace(/[ \t]+$/g, "") === right.replace(/[ \t]+$/g, "")
+  )
+    category = "trailing-whitespace";
+  return { category, path };
+}
+const sameExportDocument = (document, reparsed) =>
+  !exportDifference(document, reparsed);
 const isEmptyLineHTML = (node) =>
   node?.type === "html" && /^<br\s*\/?>$/i.test((node.value ?? "").trim());
 function sameSourceSemantics(left, right) {
@@ -258,9 +349,14 @@ function currentSnapshot(committed) {
         "Edited Markdown exceeds the 64 MiB file limit; draft retained.",
       );
     const reparsed = parse(source).toJSON();
-    if (!sameExportDocument(document, reparsed))
+    const difference = exportDifference(document, reparsed);
+    if (difference)
       throw new Error(
-        "This rich edit cannot currently be represented as Markdown without changing structure. No file was written; continue editing or Undo.",
+        `This rich edit cannot currently be represented as Markdown without changing structure (${difference.category} at ${difference.path.slice(0, 180)}). No file was written; your draft is still here. ${
+          difference.category === "trailing-whitespace"
+            ? "Remove the trailing spaces/indentation or Undo the last edit."
+            : "Continue editing or Undo the last edit."
+        }`,
       );
   }
   const selection =
@@ -515,6 +611,7 @@ async function boot() {
       sameTree,
       documentJSON,
       sameExportDocument,
+      exportDifference,
       boundedDocumentJSON,
       admitTransaction,
     };

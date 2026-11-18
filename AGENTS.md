@@ -12,7 +12,11 @@ Dependencies are pinned under WebEditor/Milkdown with complete notices/offline
 routing. No JSON note format, automatic migration or clean-note rewrite exists.
 Preserve native-owned unchanged-tree authority before serialization, exact-byte
 conflicts, async settlement/discard distinction and camera-safe native sheets.
-Never broadly strip blank paragraphs/attrs to force exports through. Images are
+Never broadly strip blank paragraphs/attrs to force exports through. Only known
+list-item marker metadata may be projected from an actual bullet/ordered parent;
+parent order, checked state, nesting/text/paragraphs and unknown/custom attrs stay
+strict. Keep export diagnostics content-free: bounded schema paths/categories,
+never note text, URLs or attribute values. Images are
 explicitly deferred pending safe authorized storage. One editable Rich/Source
 toggle occupies the old preview position; do not bind it to read-only state.
 Switching settles current unsaved source under the model busy gate without saving

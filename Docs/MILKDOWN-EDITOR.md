@@ -94,12 +94,39 @@ paragraphs, lists, code and tables without dirty notification or phantom undo.
 
 Edited export checks retain actual text, significant code whitespace, node
 structure, checkbox state, order, link targets/titles and other semantic attrs.
-Only two inspected upstream presentation differences are normalized:
+Only these inspected upstream presentation differences are normalized:
 
 1. Noncontent `spread` flags on list/list-item nodes.
-2. **One** terminal empty typing paragraph, which upstream `docSchema` explicitly
+2. Recognized per-item `label` and `listType` rendering metadata, derived only
+   under an actual bullet/ordered parent from its type, starting order and item
+   index. Parent order, checkbox state, nesting, text, paragraph counts and all
+   other/custom attrs remain strict. Unknown marker/type values are not normalized.
+3. **One** terminal empty typing paragraph, which upstream `docSchema` explicitly
    omits. Never all empty paragraphs, nested empty items, nonempty terminal
    paragraphs or empty paragraphs between content blocks.
+
+A concrete regression was lifting the nested ordered item in:
+
+```markdown
+- one
+  1. two
+```
+
+Pressing Shift-Tab in `two` moves it into the actual bullet parent, but pinned
+Milkdown retains that nonfirst item's old rendered marker `label=1.` and
+`listType=ordered`. The serialized Markdown and reopened tree correctly contain
+two bullet items. CommonMark/GFM list-item schemas and `sync-list-order-plugin`
+show why: durable kind/start belong to the parent, while the order-sync plugin
+does not reset this bullet sibling's marker. The comparison projection fixes the
+false refusal without mutating editor transactions or vendor code. The upstream
+visual marker can remain stale until reopen; this is not a visual-label fix.
+
+Failed export now includes a bounded, content-free mismatch category and schema
+path; it never echoes text, links or attribute values. A real different case stays
+blocked: Tab before a soft line break can insert trailing spaces that upstream
+serialization trims. The draft remains editable and unchanged, with a specific
+remove-trailing-indentation or Undo hint. Source switching uses the same safe
+snapshot and does not bypass genuine loss; explicit discard remains recovery-only.
 
 Upstream represents additional intentional empty paragraphs using its existing
 `<br />` Markdown placeholder. The editor permits that exact safe placeholder
@@ -220,7 +247,7 @@ under `WebEditor/Milkdown/licenses/remark-math-LICENSE` and included in notices.
 
 | Check | Evidence / result |
 | --- | --- |
-| Actual bundled editor tests | 29 tests; real keyboard transactions, no-edit/Undo, source/edited corpus, task toggle, list Tab/Shift-Tab, code whitespace, tables/empty cells, links/references/orphans, plain multiline paste, composition DOM events, state locks, history, generation clears, first-focus caret settlement and upstream unsafe-link DOM neutralization, empty-placeholder removal and mode replacement/generation isolation |
+| Actual bundled editor tests | 35 tests; real keyboard transactions, no-edit/Undo, source/edited corpus, task toggle, list Tab/Shift-Tab, code whitespace, tables/empty cells, links/references/orphans, plain multiline paste, composition DOM events, state locks, history, generation clears, first-focus caret settlement and upstream unsafe-link DOM neutralization, empty-placeholder removal and mode replacement/generation isolation |
 | Native/core/filesystem suite | 159 tests in 25 suites with approved host coordination; includes resource hashes, source authority, settlement/failure/conflict/reset and close-before-clear and bidirectional no-save mode-switch regressions |
 | Signed app builds | Fresh normal app and separate RAM-only developer app; strict signature verification |
 | CI helpers | Three system-Bash scenarios and 19 offline publisher/workflow contract tests; no hosted publication |
@@ -228,8 +255,8 @@ under `WebEditor/Milkdown/licenses/remark-math-LICENSE` and included in notices.
 | Whole-app startup/open/close/idle/hidden CPU and app-plus-WebKit RSS | Not measured; no resource budget or lightweight-performance claim |
 | Real notes/preferences/login/install/restart/commit/push | Not performed; only normal entrypoint enablement changed by explicit authorization |
 
-Local logs live in ignored `build/milkdown-audit-js-tests.log`,
-`build/milkdown-audit-tests.log`, `build/milkdown-audit-build.log` and related
+Local logs live in ignored `build/milkdown-list-fix-js-tests.log`,
+`build/milkdown-list-fix-tests.log`, `build/milkdown-list-fix-build.log` and related
 synthetic corpus/characterization JSON files. Initial sandboxed coordination
 failures were rerun with approved host access; coordination was not bypassed.
 

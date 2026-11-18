@@ -1,5 +1,35 @@
 # Validation record
 
+## Mixed-list edit export guard — November 18, 2026
+
+The reported list-edit serialization refusal was reproduced without user notes:
+load a bullet item containing a nested ordered child, then Shift-Tab the child
+into the nonfirst bullet sibling position. Only stale upstream list-item label
+and listType presentation attrs differed after Markdown/reparse. The narrow
+parent-aware comparison projection now accepts known markers while keeping
+parent order, checkbox state, nesting, text, paragraph counts and other/custom
+attrs exact. This does not mutate upstream transactions or fix its stale visual
+marker; saved/reopened Markdown follows the actual parent list.
+
+| Check | Result / boundary |
+| --- | --- |
+| Actual bundled JavaScript | **35 tests passed**, including ordered-to-bullet lifts/start3/task states, restarted numbering and exact save/reopen expectations |
+| Public edit corpus | 32 keyboard/command/checkbox fixture cases plus 432 seeded short edit/flush steps; 343 source snapshots reimported, 89 guarded drafts retained, 238 public-key actions handled |
+| Guard safety | Explicit negative order/checked/text/nesting/paragraph/custom marker and unknown-attr tests remain rejecting |
+| Actual whitespace-loss case | Tab before a soft linebreak inside a list inserts spaces that upstream trims; guard still refuses, leaves editable draft unchanged and Undo recovers |
+| Diagnostics | Bounded category/schema path only; no note text, URLs or attribute values; specific trailing-indentation recovery hint |
+| Native/core/filesystem | **159 tests in 25 suites passed** with approved coordination; headless tests do not establish GUI acceptance |
+| Helpers and builds | Three system-Bash runner scenarios and 19 offline publisher/workflow tests passed; separate normal/isolated signed list-fix apps built without launch |
+| User data / app state / remote | No user note/DOM inspection, restart, real preferences/login/reset, commit or push |
+
+Local ignored investigation and evidence live below build/milkdown-list-*. The
+first 42 simple list-key cases did not reproduce; mixed-parent lifting did.
+Normal item-end spaces that upstream safely encodes are not falsely rejected.
+These deterministic stress-fixture counts are not a real-world failure rate or
+proof that all list-edit failures are resolved. The prior commit remains intact;
+this fix is separate working changes.
+
+
 ## Normal Milkdown integration and PR audit — November 17, 2026
 
 Supersedes the earlier staged-only default and size-limit descriptions below.
