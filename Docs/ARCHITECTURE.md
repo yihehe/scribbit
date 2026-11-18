@@ -9,7 +9,8 @@
 | `NoteSession` | Baseline bytes, editable text, open/save/close/reload transitions | Hide editor after failed save |
 | `SessionWorker` | Serial ownership of synchronous session and disk transactions | Access UI state |
 | `NoteModel` | Main-actor observable state, I/O busy gating, error presentation | Do file I/O synchronously on main actor |
-| `NativeEditor`, `NoteTextView`, `NoteView`, `NoteFooter` | Stable native editing, preview, collapsible bottom controls and lightweight footer identity | Convert formatted text back to source |
+| `NativeEditor`, `NoteTextView`, `NoteView`, `NoteFooter` | Native source/fallback editing, collapsible controls and footer identity | Bypass rich snapshot/export checks |
+| `RichMarkdownEditor` / bundled Milkdown | Current rich draft, checked Markdown serialization, page/bridge isolation and bounded RAM checkpoint | Read/write note files or move file/conflict baselines |
 | `NotchPresenter` | Fixed-window silhouette animation and content arrival/departure | Save files, clear unsaved buffers, use private filters |
 | `AppSettings` | Production preferences or RAM-only isolated-test settings | Write production preferences from GUI smoke |
 | `SettingsPopupView`, `SettingsPopupState` | Transient settings UI and current system-preference snapshot | Register login, persist settings, or replace the native editor directly |
@@ -26,7 +27,7 @@ flowchart LR
     Worker --> Session[NoteSession]
     Session --> Store[NoteStore protocol]
     Store --> Disk[Coordinated atomic disk access]
-    Model --> View[SwiftUI shell and NSTextView]
+    Model --> View[SwiftUI shell and native Source or Milkdown rich editor]
 ```
 
 ## Lifecycle and loss prevention
@@ -200,8 +201,9 @@ checks the 64 MiB source bound, opens it through the serial worker and verifies
 its bytes still match the draft before adopting the file-backed session. Failure
 leaves the draft editable; if a file was created before a failed read-back, the
 error instructs the user to choose a new path. Subsequent file saves retain the
-original coordinated exact-byte conflict protection. No third-party dependency
-or additional disk polling is introduced.
+original coordinated exact-byte conflict protection. The draft/file lifecycle
+adds no storage dependency or disk polling. Normal rich editing separately uses
+the pinned offline Milkdown runtime.
 
 ### About sheet ordering and camera safety
 
@@ -234,7 +236,8 @@ animation frames. `NativeSnapshot` applies the shared contour to GUI-test images
 
 ## Native editor and indentation commands
 
-The editor uses no third-party runtime packages or engine selector. File bookmarks,
+The native source/fallback editor uses no third-party packages. Supported Markdown
+and untitled drafts normally use bundled Milkdown with one Rich/Source toggle. File bookmarks,
 speed and indicator preferences belong to the app's own settings domain.
 macOS 14 is the minimum.
 
@@ -329,3 +332,26 @@ Selection/viewport restoration retains its existing independent fingerprint chec
 Platform references: Apple's Dispatch Sources section of the Concurrency
 Programming Guide documents asynchronous/coalesced event delivery and descriptor
 lifecycle. See Docs/REFERENCE.md for links.
+
+
+## Milkdown rich editing
+
+Normal launch uses Milkdown with the existing persistent settings/login/bookmark
+semantics and real controller/session/store/notch shell. The separately marked
+developer app uses RAM preferences/no login for acceptance. A concrete asynchronous settlement boundary
+captures current native/web source before source-consuming operations, separately
+inspects dirty intent before discard decisions, and preserves native-owned exact
+committed-tree authority before rich serialization. See
+[MILKDOWN-EDITOR.md](MILKDOWN-EDITOR.md) and the staged
+[MILKDOWN-PRODUCTIONIZATION.md](MILKDOWN-PRODUCTIONIZATION.md).
+
+The existing preview-button position now hosts one editable Rich/Source
+mode action. NoteModel owns its busy gate: rich snapshot acceptance/native import
+must succeed before the controller activates the destination mode. Switching does
+not save or move the file baseline; errors preserve the current editable draft.
+The legacy native preview flag does not control normal rich editing/read-only state.
+
+Images are explicitly deferred until an authorized asset-directory lifecycle is
+implemented; existing image Markdown uses native source mode. No JSON note
+migration or clean-note rewrite occurs. Development tests/builds do not access
+real preferences or notes.

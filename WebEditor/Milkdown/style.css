@@ -1,0 +1,24 @@
+:root {
+  color-scheme: dark;
+  background: #090909;
+  color: #e8e8e8;
+  font:
+    14px -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
+body {
+  margin: 0;
+}
+.milkdown {
+  --crepe-color-background: #090909;
+  --crepe-color-surface: #202020;
+  --crepe-color-on-background: #ededed;
+  --crepe-font-default: -apple-system, BlinkMacSystemFont, sans-serif;
+  --crepe-font-title: -apple-system, BlinkMacSystemFont, sans-serif;
+  --crepe-font-code: Menlo, monospace;
+  --crepe-base-font-size: 14px;
+}
+.milkdown .ProseMirror {
+  padding: 12px 20px 30px;
+}

@@ -1,5 +1,74 @@
 # Validation record
 
+## Normal Milkdown integration and PR audit — November 17, 2026
+
+Supersedes the earlier staged-only default and size-limit descriptions below.
+The user explicitly approved Milkdown as the normal editor. Normal entrypoint
+now enables it with the unchanged production identity/bookmarks/persistent
+settings/login semantics; no running app, real preference or login item was
+changed by these tests/builds. The separate developer marker still uses RAM-only
+preferences and no login registration.
+
+| Check / finding | Evidence / result |
+| --- | --- |
+| Actual bundled JavaScript | **29 tests passed**; complete no-edit/edited corpus, mode replacement, placeholder removal, navigation-link sanitization, >1 MiB growth/export, rejected over-quota paste and exact Unicode/control/slash JSON budget |
+| Native/core/coordinated filesystem | **159 tests in 25 suites passed**, including both no-save mode directions, grown source persistence, navigation admission and canonical quota/baseline alignment |
+| Page replacement safety fix | One exact nonce-bearing programmatic main-frame native boot/recovery is admitted once; same-path links/reloads/changed query/frames/replay are denied. Page nonce rotates after crash without discarding native source/mirror. Policy tests are not actual WebKit delivery tests |
+| Size recovery fix | 1 MiB initial admission is distinct from 2 MiB live canonical-document quota and existing 64 MiB exported-source cap; over-quota transactions reject before mutation, grown admitted drafts can still save/switch Source |
+| Canonical quota consistency fix | Native document size and baseline encoding uses withoutEscapingSlashes, matching JavaScript for slash/control/Unicode. Exact 2 MiB passes, one-byte-over rejects, slash-heavy grown source exports without truncation and unchanged source reuse remains valid |
+| Authored source and dependencies | WebEditor/Milkdown, package scribbit-milkdown-editor; exact locked public-registry dependencies, preserved full licenses; fresh no-lifecycle-script npm ci completed |
+| Regeneration reproducibility | Repeat JS/CSS/notices/runtime-inventory/manifest generation was byte-identical; Swift manifest hashes passed |
+| CI release gate | New read-only pinned-Node web-editor job tests/regenerates/checks committed output; development release requires both macOS and web-editor success, keeping the macOS artifact identity. Remote CI not run |
+| Local helper suites | Three system-Bash runner scenarios and **19 offline publisher/workflow contract tests passed** |
+| Signed normal app | build/milkdown-audit/Scribbit.app built, production ID com.stephenhe.Scribbit confirmed, strict deep signature passed, all five Milkdown resources packaged |
+| Signed isolated developer app | build/milkdown-audit-isolated/Scribbit Milkdown Candidate.app built, RAM-only marker confirmed, strict deep signature passed |
+| Native builds | Consume committed resources without npm/network; native GUI harness remains explicitly native-only, not Milkdown coverage |
+| Actual GUI / IME / VoiceOver / menu-focus / crash injection / app-plus-WebKit resources | Not run or measured; remaining acceptance gates |
+| Images | Still deferred; source fallback and visible paste/drop rejection, no unapproved asset writes |
+| Real notes / production preferences / login / launch / reset / commit / push | Not performed |
+
+Transaction-admission component benchmark: Node 22.19.0, darwin arm64/JSDOM,
+30 samples after five warmups. Actual JSON gate median/p95: 4 KiB
+0.008/0.012 ms, 64 KiB 0.113/0.119 ms, 1 MiB 1.863/2.552 ms. Excludes DOM,
+layout, paint, physical IME and all WebKit/whole-app work; no interactive latency,
+whole-app memory or resource-budget claim follows. No per-key Markdown export.
+
+Ignored evidence: build/milkdown-audit-js-tests.log,
+build/milkdown-audit-tests.log, build/milkdown-audit-build.log,
+build/milkdown-audit-isolated-build.log, build/milkdown-audit-shell-tests.log,
+build/milkdown-audit-publisher-tests.log and
+build/milkdown-admission-benchmark.json. Initial test-macro compilation failures
+were corrected and complete suites rerun; no filesystem-coordination bypass.
+
+
+## Milkdown editable Rich and Source modes — November 17, 2026
+
+One toolbar mode action replaces the candidate read-only preview and duplicate
+Use Source/status controls. Mode switches accept current unsaved content without
+saving or changing the file baseline. Failure retains the originating editable
+mode. No GUI was launched; the existing no-placeholder build was left running.
+
+| Check | Result |
+| --- | --- |
+| Actual bundled JavaScript | **25 passed**, including the retained placeholder regression and mode replacement/history/generation case |
+| Native/core/coordinated filesystem | **153 tests in 21 suites passed**, including seven mode-transition regressions |
+| System Bash / offline publisher | **3 scenarios / 16 tests passed** |
+| Fresh separate candidate | build/milkdown-modes/Scribbit Milkdown Candidate.app built and strict deep signature verified |
+| GUI / physical IME / accessibility / crash / performance | Not run; remaining acceptance gates, not unit-test claims |
+
+
+## Milkdown empty-editor placeholder — November 17, 2026
+
+Disabled Crepe's public Placeholder feature so blank notes and empty paragraphs
+remain visually blank. No serializer, note-storage, or newline behavior changed.
+
+| Check | Result |
+| --- | --- |
+| Bundled editor tests | **24 passed**, including absence of placeholder plugin/decorations in empty notes and new empty paragraphs, with typing still functional |
+| Native/core/filesystem tests | **146 tests in 20 suites passed** with approved host coordination |
+| Separate signed release | Passed; `build/milkdown-no-placeholder/Scribbit Milkdown No Placeholder.app` |
+| Live GUI | Not run; the running candidate was not restarted |
+
 ## Untitled drafts and first-time setup reset — PR preparation, November 16, 2026
 
 Rebased the local feature onto fetched main at `1308509`, preserving the shared
@@ -478,3 +547,35 @@ and important limitations. Production storage/cache/save code was unchanged.
 
 Raw final artifacts remain ignored below build/file-watching-benchmarks-final;
 the durable report contains the results without committing generated outputs.
+
+## Staged Milkdown full-shell candidate — November 17, 2026
+
+This is a separately marked, opt-in evaluation build based on remote main
+`cb340bd`, not a default-editor switch or note-format migration. It uses the real
+notch/session/storage shell with RAM-only preferences and no login registration.
+See MILKDOWN-EDITOR.md for contracts, limits, corpus and remaining gates.
+
+| Check | Result / boundary |
+| --- | --- |
+| Actual bundled Milkdown JavaScript | **25 tests passed** in headless JSDOM against the committed bundle, not a reimplementation |
+| Keyboard / Markdown fixtures | List Tab/Shift-Tab, tasks, code whitespace, tables/empty cells, links/references, literal escapes, multiline plain paste and edited export/reopen passed |
+| No-edit and Undo authority | Native committed tree is supplied before serialization, Swift verifies equality independently, and original source bytes are reused; upstream caret append is settled before baseline |
+| Unsafe links | Actual upstream DOM sanitizer neutralizes unsafe/obfuscated explicit schemes while stored destinations and original Markdown survive; literal code URLs remain code; native external navigation remains denied |
+| Native / core / coordinated filesystem | **153 tests in 21 suites passed** with approved host coordination, including close-before-clear, snapshot authority, failed settlement/conflict/reset and bundled resource hashes |
+| Signed candidate | Fresh release build and strict signature verification passed; separately marked bundle ID com.stephenhe.Scribbit.candidate.milkdown |
+| CI helper regressions | Three system-Bash runner scenarios and 16 offline publisher tests passed; no remote release mutation |
+| Single editable mode toggle | Both directions accept newest unsaved source without save/baseline changes; failures retain source/draft, busy/reentry blocks file switches, .txt/large fallback remains native; bundle tests cover generations/history and placeholder removal |
+| Rich limits | 1 MiB source and 2 MiB JSON bridge bounds; native source fallback remains 64 MiB; none is a total-memory guarantee |
+| Images | Intentionally deferred: source falls back, image/file paste/drop is visibly rejected without any asset write |
+| GUI / WebKit / physical IME / VoiceOver / crash / performance | Not run or measured; headless DOM tests do not establish these outcomes |
+| Real notes / production preferences / login / install / restart / commit / push | Not performed |
+
+Ignored local logs: build/milkdown-mode-js-tests.log,
+build/milkdown-mode-tests.log, build/milkdown-mode-build.log,
+build/milkdown-shell-tests.log and build/milkdown-publisher-tests.log.
+Initial sandboxed filesystem coordination failures were rerun with approved host
+access; no coordination bypass was used. Candidate output is
+build/milkdown-modes/Scribbit Milkdown Candidate.app. The normal unmarked app
+entrypoint remains native. Image authorization/storage, actual disposable-note
+GUI acceptance, app-plus-WebKit resource measurements and explicit rollout
+approval remain required before any default enablement.

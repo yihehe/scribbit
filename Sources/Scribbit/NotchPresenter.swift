@@ -4,6 +4,7 @@ import ScribbitCore
 
 @MainActor
 final class NotchPresenter {
+    static let windowLevel: NSWindow.Level = .statusBar
     enum Phase { case hidden, expanding, expanded, collapsing }
     private(set) var phase: Phase = .hidden
     let panel: NSPanel
@@ -31,7 +32,7 @@ final class NotchPresenter {
         panel.animationBehavior = .none
         panel.appearance = NSAppearance(named: .darkAqua)
         // The attached silhouette must cover the menu bar rather than sit under it.
-        panel.level = .statusBar
+        panel.level = Self.windowLevel
     }
 
     func configure(_ geometry: NotchGeometry) {

@@ -38,6 +38,77 @@ final class NoteModel: ObservableObject {
     @Published var hoverDelay = HoverDelay.defaultValue
     @Published private(set) var isUntitled = true
     @Published private(set) var isBusy = false
+    /// One concrete asynchronous editor seam. Native operation has no callback.
+    /// Browser change notifications are dirty intent, never authoritative bytes.
+    var captureEditor: ((_ inspectionOnly: Bool) async throws -> String?)?
+    var finishEditor: ((EditorSettlementOutcome, String) -> Void)?
+    var invalidateEditor: (() -> Void)?
+    @Published private(set) var pendingEditorChanges = false
+    func editorDidChange(_ dirty: Bool = true) {
+        guard dirty != pendingEditorChanges else { return }
+        pendingEditorChanges = dirty
+    }
+    func prepareEditor(_ operation: () async -> Void) async {
+        guard !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+        await operation()
+    }
+    private func captureCurrentEditor() async throws {
+        if let source = try await captureEditor?(false) {
+            text = source
+            pendingEditorChanges = false
+        }
+    }
+    /// Dirty decisions need final browser revision/composition settlement even
+    /// if no change notification has arrived. Inspection does not serialize
+    /// Markdown, so an unsafe conversion can still be explicitly discarded.
+    func settleEditorForDecision() async -> Bool {
+        guard !isBusy else { return false }
+        guard captureEditor != nil else { return true }
+        isBusy = true
+        defer { isBusy = false; finishEditor?(.retained, text) }
+        do {
+            if let unchangedSource = try await captureEditor?(true) {
+                text = unchangedSource
+                pendingEditorChanges = false
+            }
+            return true
+        }
+        catch { self.error = error.localizedDescription; return false }
+    }
+    func discardRichDraftForSource() {
+        guard !isBusy else { return }
+        pendingEditorChanges = false
+        invalidateEditor?()
+    }
+    /// A mode change settles the editor, never the file. The file/session baseline
+    /// must remain unchanged until an actual save succeeds.
+    @discardableResult
+    func changeEditorMode(toRich: Bool, importRich: (String, URL?) async -> Bool,
+                          activateSource: () -> Void) async -> Bool {
+        guard isOpen, !isBusy, !resetInProgress else { return false }
+        isBusy = true
+        defer { isBusy = false }
+        if toRich {
+            // The controller commits native composition before taking this gate.
+            guard await importRich(text, url) else { return false }
+            error = nil
+            return true
+        }
+        do {
+            try await captureCurrentEditor()
+            editorSelection = TextSelection.clamped(editorSelection, in: text)
+            selectionRevision &+= 1
+            activateSource()
+            error = nil
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            finishEditor?(.retained, text)
+            return false
+        }
+    }
     // Freeze native editing while a confirmed reset awaits login removal.
     @Published var resetInProgress = false
     @Published private(set) var isOpen = false
@@ -51,7 +122,7 @@ final class NoteModel: ObservableObject {
     private var baselineText = ""
     private let worker: SessionWorker
     init(session: NoteSession = NoteSession(store: WatchedNoteStore())) { worker = SessionWorker(session: session) }
-    var isDirty: Bool { isUntitled ? !text.isEmpty : isOpen && text != baselineText }
+    var isDirty: Bool { pendingEditorChanges || (isUntitled ? !text.isEmpty : isOpen && !text.utf8.elementsEqual(baselineText.utf8)) }
 
     /// Untitled text stays RAM-only across hover dismissal; no file worker session exists.
     func openUntitled() {
@@ -71,6 +142,8 @@ final class NoteModel: ObservableObject {
     func discardUntitled() {
         guard isUntitled, !isBusy else { return }
         text = ""
+        pendingEditorChanges = false
+        invalidateEditor?()
         baselineText = ""
         editorSelection = NSRange(location: 0, length: 0)
         editorScrollOrigin = nil
@@ -79,10 +152,12 @@ final class NoteModel: ObservableObject {
     /// Never overwrite an existing destination on behalf of an untitled draft.
     func saveUntitled(to destination: URL) async -> Bool {
         guard isUntitled, !isBusy else { return false }
-        let current = text
         isBusy = true
-        defer { isBusy = false }
+        var outcome = EditorSettlementOutcome.retained
+        defer { isBusy = false; finishEditor?(outcome, text) }
         do {
+            try await captureCurrentEditor()
+            let current = text
             try await worker.perform { session in
                 let data = Data(current.utf8)
                 guard data.count <= DiskNoteStore.maximumBytes else { throw NoteError.tooLarge }
@@ -103,6 +178,7 @@ final class NoteModel: ObservableObject {
             preview = false
             selectionRevision &+= 1
             error = nil
+            outcome = .saved
             return true
         } catch {
             self.error = "Cannot save untitled note. Your draft is still here. Choose a new file path. " + error.localizedDescription
@@ -130,6 +206,7 @@ final class NoteModel: ObservableObject {
             baselineText = loaded.text
             filename = url.lastPathComponent
             isUntitled = false
+            pendingEditorChanges = false
             controlsExpanded = false
             preview = false
             isOpen = true
@@ -151,6 +228,8 @@ final class NoteModel: ObservableObject {
             closedSourceFingerprint = nil
             editorSelection = NSRange(location: 0, length: 0)
             editorScrollOrigin = nil
+            pendingEditorChanges = false
+            invalidateEditor?()
             selectionRevision &+= 1
             filename = "Untitled note"
             isUntitled = true
@@ -173,15 +252,20 @@ final class NoteModel: ObservableObject {
     func close(keepPresentation: Bool = false) async -> Bool {
         guard !isBusy else { return false }
         guard isOpen else { return true }
-        if isUntitled {
-            isOpen = false
-            if !keepPresentation { clearClosedPresentation() }
-            return true
-        }
         isBusy = true
-        let current = text
-        defer { isBusy = false }
+        var outcome = EditorSettlementOutcome.retained
+        var settledSource = text
+        defer { isBusy = false; finishEditor?(outcome, settledSource) }
         do {
+            try await captureCurrentEditor()
+            settledSource = text
+            if isUntitled {
+                isOpen = false
+                outcome = .closed
+                if !keepPresentation { clearClosedPresentation() }
+                return true
+            }
+            let current = text
             let fingerprint = try await worker.perform { session in
                 session.text = current
                 try session.close()
@@ -191,6 +275,7 @@ final class NoteModel: ObservableObject {
             isOpen = false
             if !keepPresentation { clearClosedPresentation() }
             error = nil
+            outcome = .closed
             return true
         } catch { self.error = error.localizedDescription; return false }
     }
@@ -207,12 +292,15 @@ final class NoteModel: ObservableObject {
     func save() async {
         guard !isBusy, isOpen, !isUntitled else { return }
         isBusy = true
-        let current = text
-        defer { isBusy = false }
+        var outcome = EditorSettlementOutcome.retained
+        defer { isBusy = false; finishEditor?(outcome, text) }
         do {
+            try await captureCurrentEditor()
+            let current = text
             try await worker.perform { session in session.text = current; try session.save() }
             baselineText = current
             error = nil
+            outcome = .saved
         } catch { self.error = error.localizedDescription }
     }
     func reload() async {
@@ -227,6 +315,8 @@ final class NoteModel: ObservableObject {
             }
             if !loaded.unchanged { editorScrollOrigin = nil }
             text = loaded.text
+            pendingEditorChanges = false
+            invalidateEditor?()
             baselineText = loaded.text
             editorSelection = TextSelection.clamped(editorSelection, in: loaded.text)
             selectionRevision &+= 1
@@ -250,9 +340,10 @@ final class NoteModel: ObservableObject {
             return
         }
         isBusy = true
-        let current = text
-        defer { isBusy = false }
+        defer { isBusy = false; finishEditor?(.retained, text) }
         do {
+            try await captureCurrentEditor()
+            let current = text
             try await worker.perform { _ in try Data(current.utf8).write(to: destination, options: .atomic) }
         } catch { self.error = error.localizedDescription }
     }

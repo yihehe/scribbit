@@ -11,9 +11,11 @@ acceptance limits; no real-token publication is part of local testing.
 
 ## Native-editor gate
 
-The only editor is NSTextView plus NoteTextView's Shift-Tab command. There are
-no third-party runtime packages or editor switches. Run the signed candidate
-without modifying the currently launched bundle:
+This gate explicitly exercises the native Source/fallback NSTextView and
+NoteTextView Shift-Tab command. The normal app also includes Milkdown rich editing;
+passing this native harness is not rich-editor GUI acceptance. Run tests/builds
+without modifying the currently launched bundle; GUI execution requires explicit
+authorization:
 
 ```sh
 Scripts/test.sh
@@ -270,3 +272,37 @@ timing assertions. Fixtures are private per subprocess and removed automatically
 Host access may be needed for NSFileCoordinator. Measurements and limitations are
 in [FILE-WATCHING-PERFORMANCE.md](FILE-WATCHING-PERFORMANCE.md). This is not a GUI,
 physical-disk, energy or whole-app memory benchmark.
+
+
+## Milkdown rich editor and developer acceptance build
+
+Normal launch explicitly enables Milkdown with persistent app settings. Existing
+native GUI smoke/benchmark constructors remain native-only; their coverage must
+not be presented as rich WebKit/physical IME acceptance. No test changes real
+bookmarks/preferences/login or reads user notes.
+
+`WebEditor/Milkdown` contains exact locked web dependencies, authored editor and
+actual bundled-JS headless regressions. `npm test` there runs separately from
+Swift tests; it is not silently counted as GUI acceptance. Native tests verify
+source/lock/bundle/notices hashes without requiring Node/network, source snapshot
+authority and settlement ordering, failed captures/saves, original-byte no-write
+paths, and retaining final source before closed presentation is cleared. Mode
+regressions cover latest unsaved source in both directions without file writes or
+baseline changes, failed capture/import retention, busy/reentry/closed/reset
+guards, untitled drafts and .txt/large fallback. Actual bundled-JS tests cover
+mode replacement, editing after import, no cross-replacement undo and stale clears.
+Toolbar appearance/accessibility and physical composition focus remain GUI gates.
+
+`Scripts/build-milkdown-candidate.sh` builds/signs a separate marked candidate,
+never launches it. See [MILKDOWN-EDITOR.md](MILKDOWN-EDITOR.md) for exact
+reproduction, normalization scope, supported/fallback inputs and remaining
+physical IME, GUI, accessibility, crash and whole-app resource acceptance.
+
+The read-only Ubuntu web-editor CI job uses pinned Node 22.23.5 and official
+setup-node v6 at a verified commit SHA. It installs the lockfile from the public
+registry with no lifecycle scripts/user npm config/audit, regenerates committed
+assets/notices/inventory/manifest, runs actual bundle tests and checks drift.
+The trusted development publisher requires both web-editor and macOS success;
+its macOS artifact identity, permissions and freshness/rollback checks remain.
+Normal Swift builds still require neither Node nor network. Offline workflow
+contracts are tested alongside the existing publisher suite.

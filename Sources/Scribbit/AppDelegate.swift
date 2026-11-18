@@ -12,13 +12,33 @@ final class NotePanel: NSPanel {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation, NSPopoverDelegate, NSWindowDelegate {
     private let model = NoteModel()
     private let isolated: Bool
+    private let ephemeralPreferences: Bool
+    private var permitsSystemSettings: Bool { !isolated && !ephemeralPreferences }
     private let settings: AppSettings
-    init(isolated: Bool = false) {
+    private let richEditor: RichMarkdownEditor?
+    init(isolated: Bool = false, richMarkdown: Bool = false, ephemeralPreferences: Bool = false) {
         self.isolated = isolated
-        settings = AppSettings(isolated: isolated)
+        self.ephemeralPreferences = ephemeralPreferences
+        richEditor = richMarkdown ? RichMarkdownEditor() : nil
+        settings = AppSettings(isolated: isolated || ephemeralPreferences)
         super.init()
         model.animationSpeed = settings.animationSpeed
         model.hoverDelay = settings.hoverDelay
+        model.captureEditor = { [weak self] inspection in
+            guard let self else { return nil }
+            if let richEditor = self.richEditor, richEditor.active {
+                return try await richEditor.capture(inspectionOnly: inspection)
+            }
+            self.commitComposition(in: self.panel?.contentView)
+            return nil
+        }
+        if let richEditor {
+            model.finishEditor = { [weak richEditor] outcome, source in richEditor?.finish(outcome, source: source) }
+            model.invalidateEditor = { [weak richEditor] in richEditor?.invalidate() }
+            let currentModel = model
+            richEditor.changed = { [weak currentModel] dirty in currentModel?.editorDidChange(dirty) }
+            richEditor.failed = { [weak currentModel] error in currentModel?.error = error }
+        }
     }
     private var panel: NotePanel!
     private var presenter: NotchPresenter!
@@ -63,11 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             object: nil, queue: .main) { [weak self] _ in Task { await self?.closeNote() } })
         refreshIndicators()
         // Register once, not on every launch: honor later user changes in System Settings.
-        if !isolated, !settings.didOfferLogin {
+        if permitsSystemSettings, !settings.didOfferLogin {
             settings.didOfferLogin = true
             setLogin(enabled: true, reportError: true)
         }
-        if !isolated, bookmark == nil { Task { await openNote() } }
+        if (!isolated && bookmark == nil) || (isolated && richEditor != nil) { Task { await openNote() } }
     }
 
     private func applicationDeactivated() {
@@ -93,7 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             saveCopy: { [weak self] in Task { await self?.saveCopy() } },
             reload: { [weak self] in Task { await self?.confirmReload() } },
             create: { [weak self] in Task { await self?.createFile() } },
-            showSettings: { [weak self] button in self?.showSettings(from: button) }))
+            showSettings: { [weak self] button in self?.showSettings(from: button) },
+            richEditor: richEditor,
+            toggleEditorMode: { [weak self] in Task { await self?.toggleEditorMode() } },
+            discardRichDraft: { [weak self] in self?.discardRichDraft() }))
         presenter = NotchPresenter(panel: panel, content: content)
         presenter.animationSpeed = settings.animationSpeed
         panel.setAccessibilityLabel("Scribbit editor")
@@ -126,7 +149,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             ("Select All", "selectAll:", "a")] {
             edit.addItem(NSMenuItem(title: title, action: Selector(action), keyEquivalent: key))
         }
-        let find = NSMenuItem(title: "Find…", action: #selector(NSTextView.performFindPanelAction(_:)), keyEquivalent: "f")
+        let find = NSMenuItem(title: "Find…", action: #selector(findAction(_:)), keyEquivalent: "f")
+        find.target = self
         find.tag = NSTextFinder.Action.showFindInterface.rawValue
         edit.addItem(find)
         editRoot.submenu = edit
@@ -151,8 +175,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     private func refreshPopupState() {
         popupState.indicator = indicatorEnabled
-        popupState.launchAtLogin = !isolated && SMAppService.mainApp.status == .enabled
-        popupState.loginRequiresApproval = !isolated && SMAppService.mainApp.status == .requiresApproval
+        popupState.launchAtLogin = permitsSystemSettings && SMAppService.mainApp.status == .enabled
+        popupState.loginRequiresApproval = permitsSystemSettings && SMAppService.mainApp.status == .requiresApproval
     }
     private func controlButton(_ identifier: String, in view: NSView?) -> NSButton? {
         guard let view else { return nil }
@@ -173,12 +197,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         settingsPopover.behavior = .transient
         settingsPopover.delegate = self
         settingsPopover.contentViewController = NSHostingController(rootView: SettingsPopupView(
-            model: model, settings: popupState, canChangeLogin: !isolated,
+            model: model, settings: popupState, canChangeLogin: permitsSystemSettings,
             choose: { [weak self] in self?.chooseAction() },
             create: { [weak self] in self?.createAction() },
             save: { [weak self] in self?.saveAction() },
             saveCopy: { [weak self] in
-                self?.settingsPopover.performClose(nil)
                 Task { await self?.saveCopy() }
             },
             close: { [weak self] in self?.closeAction() },
@@ -345,6 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             await revealPanel(on: screen, fromHover: fromHover)
             return
         }
+        if let richEditor { await model.prepareEditor { await richEditor.prepare(source: model.text, url: url) } }
         // Observation outlives panel visibility. Replace the previous scope only
         // after successfully opening the new selection; quit balances the last.
         accessedURL?.stopAccessingSecurityScopedResource()
@@ -365,6 +389,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             }
         }
         if !model.isOpen { model.openUntitled() }
+        if let richEditor, model.isUntitled, !richEditor.active {
+            await model.prepareEditor { await richEditor.prepare(source: model.text, url: nil) }
+        }
         presenter.showsRestingWing = indicatorEnabled
         if let destination { presenter.configure(geometry(destination)) }
         indicators.forEach { $0.orderOut(nil) }
@@ -378,7 +405,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         trackOpenPointer()
     }
     private func focusEditor(in view: NSView?) {
+        // A delayed reveal/layout completion must not take focus from native
+        // auxiliary UI. Both native and web editors use this same boundary.
+        guard !presentingDialog, !settingsPresented, panel.attachedSheet == nil else { return }
+        if let richEditor, richEditor.active {
+            if let web = richEditor.web { panel.makeFirstResponder(web) }
+            richEditor.focus()
+            return
+        }
         guard let view else { return }
+        if let web = richEditor?.web, view === web { return }
         if let text = view as? NoteTextView {
             let origin = text.enclosingScrollView?.contentView.bounds.origin
             panel.makeFirstResponder(text)
@@ -393,7 +429,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         for child in view.subviews { focusEditor(in: child) }
     }
     private func rememberViewport(in view: NSView?) {
+        if richEditor?.active == true { return }
         guard let view else { return }
+        if let web = richEditor?.web, view === web { return }
         if let editor = view as? NoteTextView, let scroll = editor.enclosingScrollView {
             model.rememberEditorScrollOrigin(scroll.contentView.bounds.origin)
             return
@@ -401,7 +439,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         for child in view.subviews { rememberViewport(in: child) }
     }
     private func commitComposition(in view: NSView?) {
+        // Browser composition is accepted by the asynchronous settlement seam,
+        // never by traversing WebKit's private view hierarchy.
+        if richEditor?.active == true { return }
         guard let view else { return }
+        if let web = richEditor?.web, view === web { return }
         if let editor = view as? NSTextView {
             let origin = editor.enclosingScrollView?.contentView.bounds.origin
             // Use AppKit's acceptance operation, never reconstruct preedit.
@@ -425,13 +467,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         await presenter.waitUntilSettled()
         commitComposition(in: panel.contentView)
         let previousResponder = panel.firstResponder
-        panel.makeFirstResponder(nil)
+        let closingRichEditor = richEditor?.active == true
+        // Browser composition must settle before focus is relinquished, not as
+        // a side effect of dropping the native first responder.
+        if !closingRichEditor { panel.makeFirstResponder(nil) }
         guard await model.close(keepPresentation: true) else {
             if panel.isKeyWindow { panel.makeFirstResponder(previousResponder) }
             return false
         }
+        if closingRichEditor { panel.makeFirstResponder(nil) }
         await presenter.dismiss()
         model.clearClosedPresentation()
+        richEditor?.releaseClosedDocument()
         dwell?.cancel(); dwell = nil
         hover.suppressUntilExit()
         if target(at: self.pointerLocation) == nil { _ = hover.move(to: nil) }
@@ -474,6 +521,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     /// whether to save/discard; cancelling either dialog leaves the draft intact.
     private func resolveUntitledBeforeReplacement() async -> Bool {
         commitComposition(in: panel.contentView)
+        guard await model.settleEditorForDecision() else { return false }
         guard model.isUntitled, model.isDirty else { return true }
         presentingDialog = true
         settingsPopover.performClose(nil)
@@ -504,9 +552,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let picker = NSSavePanel()
         picker.title = "Save untitled note to a new file"
         picker.nameFieldStringValue = "Notes.md"
-        let response = await withCheckedContinuation { continuation in
-            picker.beginSheetModal(for: panel) { continuation.resume(returning: $0) }
-        }
+        let response = await presentNoteSheet(picker)
         guard response == .OK, let selected = picker.url else {
             presentingDialog = false
             return false
@@ -519,6 +565,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             accessedURL = scoped ? selected : nil
             do { try remember(selected) }
             catch { model.error = "Saved, but the location could not be remembered: \(error.localizedDescription)" }
+            if let richEditor {
+                if selected.pathExtension.lowercased() == "md" { richEditor.adoptIdentity(selected) }
+                else { await model.prepareEditor { await richEditor.prepare(source: model.text, url: selected) } }
+            }
             if !panel.isVisible { await revealPanel(fromHover: false) }
         } else if scoped { selected.stopAccessingSecurityScopedResource() }
         return saved
@@ -526,11 +576,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private func saveCopy() async {
         guard !presentingDialog, !model.isBusy, !closing, presenter?.isTransitioning != true else { return }
         presentingDialog = true
+        defer { finishNoteDialog() }
+        settingsPopover.performClose(nil)
         let picker = NSSavePanel()
         picker.title = "Save a copy — the current note stays open"
         picker.nameFieldStringValue = "\(model.url?.deletingPathExtension().lastPathComponent ?? "Note") copy.md"
-        let response = picker.runModal()
-        presentingDialog = false
+        let response = await presentNoteSheet(picker)
         guard response == .OK, let url = picker.url else { return }
         guard url.resolvingSymlinksInPath() != model.url else {
             model.error = "Choose a different path for the copy. The original was not overwritten."; return
@@ -540,16 +591,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private func confirmReload() async {
         guard !presentingDialog, !model.isBusy, !closing, presenter?.isTransitioning != true else { return }
         presentingDialog = true
+        defer { finishNoteDialog() }
         let alert = NSAlert()
         alert.messageText = "Discard your edits and reload from disk?"
         alert.informativeText = "Save a copy first if you want to keep these edits. This cannot be undone."
         alert.addButton(withTitle: "Cancel")
         alert.addButton(withTitle: "Discard and Reload")
-        let response = alert.runModal()
-        presentingDialog = false
+        let response = await presentNoteSheet(alert)
         if response == .alertSecondButtonReturn {
             commitComposition(in: panel.contentView)
             await model.reload()
+            if model.error == nil, let richEditor { await model.prepareEditor { await richEditor.prepare(source: model.text, url: model.url) } }
         }
     }
     private func showError(_ title: String, _ detail: String) {
@@ -559,11 +611,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = detail
+        if panel?.isVisible == true {
+            Task { _ = await presentNoteSheet(alert); finishNoteDialog() }
+            return
+        }
+        // Standalone modal is used only when no elevated note window is visible.
         alert.runModal()
         presentingDialog = false
     }
     private func setLogin(enabled: Bool, reportError: Bool) {
-        guard !isolated else { return }
+        guard permitsSystemSettings else { return }
         do {
             if enabled { try SMAppService.mainApp.register() }
             else { try SMAppService.mainApp.unregister() }
@@ -576,7 +633,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         refreshPopupState()
     }
     @objc private func toggleLogin() {
-        guard !isolated else { return }
+        guard permitsSystemSettings else { return }
         let state = SMAppService.mainApp.status
         if state == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
         else { setLogin(enabled: state != .enabled, reportError: true) }
@@ -655,22 +712,87 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         return editor
     }
     @objc private func undoAction() {
+        if let richEditor, richEditor.active, !model.isBusy, !model.resetInProgress { richEditor.undo(); return }
         guard let editor = editableResponder else { return }
         editor.breakUndoCoalescing()
         editor.undoManager?.undo()
     }
     @objc private func redoAction() {
+        if let richEditor, richEditor.active, !model.isBusy, !model.resetInProgress { richEditor.redo(); return }
         guard let editor = editableResponder else { return }
         editor.breakUndoCoalescing()
         editor.undoManager?.redo()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if let richEditor, richEditor.active {
+            if menuItem.action == #selector(undoAction) { return !model.isBusy && !model.resetInProgress && richEditor.canUndo }
+            if menuItem.action == #selector(redoAction) { return !model.isBusy && !model.resetInProgress && richEditor.canRedo }
+        }
         if menuItem.action == #selector(undoAction) { return editableResponder?.undoManager?.canUndo == true }
         if menuItem.action == #selector(redoAction) { return editableResponder?.undoManager?.canRedo == true }
         return true
     }
     @objc private func closeAction() { Task { await closeNote() } }
     @objc private func quit() { NSApp.terminate(nil) }
+    @objc private func findAction(_ sender: NSMenuItem) {
+        guard let richEditor, richEditor.active else {
+            NSApp.sendAction(#selector(NSTextView.performFindPanelAction(_:)), to: editableResponder, from: sender)
+            return
+        }
+        guard !presentingDialog, !model.isBusy, !closing, panel.isVisible else { return }
+        presentingDialog = true
+        let alert = NSAlert()
+        alert.messageText = "Find in rich note"
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Find")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        Task {
+            let response = await presentNoteSheet(alert)
+            presentingDialog = false
+            if response == .alertFirstButtonReturn { richEditor.find(field.stringValue) }
+            trackOpenPointer()
+        }
+    }
+    private func toggleEditorMode() async {
+        guard let richEditor, !presentingDialog, !closing, panel.isVisible,
+              model.isOpen, !model.isBusy, !model.resetInProgress else { return }
+        let toRich = !richEditor.active
+        if toRich { commitComposition(in: panel.contentView) }
+        let switched = await model.changeEditorMode(toRich: toRich, importRich: { source, url in
+            await richEditor.prepare(source: source, url: url)
+            return richEditor.active
+        }, activateSource: { richEditor.deactivateToSource() })
+        guard switched else { return }
+        await Task.yield()
+        guard model.isOpen, !model.isBusy, !closing, panel.isVisible else { return }
+        panel.contentView?.layoutSubtreeIfNeeded()
+        focusEditor(in: panel.contentView)
+    }
+    private func discardRichDraft() {
+        guard richEditor?.active == true, !presentingDialog, !model.isBusy else { return }
+        presentingDialog = true
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Discard the rich draft and use source?"
+        alert.informativeText = "The source editor will show the last accepted Markdown. Rich edits that could not be exported will be discarded only if you continue. No file is changed by switching. Copy any text you need first."
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Discard Rich Draft")
+        Task {
+            let response = await presentNoteSheet(alert)
+            presentingDialog = false
+            if response == .alertSecondButtonReturn {
+                model.discardRichDraftForSource()
+                richEditor?.deactivateToSource(discardingDraft: true)
+                await Task.yield()
+                guard model.isOpen, !model.isBusy, !closing, panel.isVisible, richEditor?.active != true else { return }
+                panel.contentView?.layoutSubtreeIfNeeded()
+                focusEditor(in: panel.contentView)
+            }
+            trackOpenPointer()
+        }
+    }
     @objc private func about() {
         guard !presentingDialog, panel.isVisible else { return }
         presentingDialog = true
@@ -714,12 +836,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         confirmation.alertStyle = .warning
         confirmation.messageText = "Reset Scribbit for first-time setup?"
         confirmation.informativeText = "This forgets the selected file, resets Scribbit settings and cursor position, and turns off Launch at Login. Your note files are never deleted. Unsaved text must be saved or explicitly discarded. A blank untitled notepad will open immediately. Like a first launch, the next launch will attempt to enable Launch at Login again."
+        if ephemeralPreferences { confirmation.informativeText += "\n\nThis evaluation candidate uses RAM settings and never changes system login items." }
         confirmation.addButton(withTitle: "Cancel")
         confirmation.addButton(withTitle: "Continue…")
-        guard await resetSheet(confirmation) == .alertSecondButtonReturn else { return }
+        guard await presentNoteSheet(confirmation) == .alertSecondButtonReturn else { return }
         // Explicit setup intent keeps cancellation/save errors visible after sheets.
         openedByHover = false
         commitComposition(in: panel.contentView)
+        guard await model.settleEditorForDecision() else { return }
         if model.isDirty {
             let edits = NSAlert()
             edits.messageText = "Save your note before resetting?"
@@ -727,7 +851,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             edits.addButton(withTitle: model.isUntitled ? "Save As…" : "Save")
             edits.addButton(withTitle: "Cancel")
             edits.addButton(withTitle: "Discard")
-            switch await resetSheet(edits) {
+            switch await presentNoteSheet(edits) {
             case .alertFirstButtonReturn:
                 if model.isUntitled {
                     presentingDialog = false
@@ -744,7 +868,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         model.resetInProgress = true
         panel.makeFirstResponder(nil)
-        if !isolated {
+        if permitsSystemSettings {
             do {
                 if SMAppService.mainApp.status == .enabled || SMAppService.mainApp.status == .requiresApproval {
                     try await SMAppService.mainApp.unregister()
@@ -767,6 +891,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         pointerInsideSurface = true
         refreshPopupState()
         refreshIndicators()
+        if let richEditor { await model.prepareEditor { await richEditor.prepare(source: model.text, url: nil) } }
         // Let SwiftUI recreate the editor if reset was requested from preview.
         await Task.yield()
         panel.contentView?.layoutSubtreeIfNeeded()
@@ -774,14 +899,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
     }
-    private func resetSheet(_ alert: NSAlert) async -> NSApplication.ModalResponse {
-        alert.window.level = panel.level
+    private func presentNoteSheet(_ alert: NSAlert) async -> NSApplication.ModalResponse {
+        settingsPopover.performClose(nil)
+        alert.window.level = NoteDialogPresentation.sheetLevel(parent: panel.level)
         return await withCheckedContinuation { continuation in
             alert.beginSheetModal(for: panel) { continuation.resume(returning: $0) }
         }
     }
+    private func presentNoteSheet(_ picker: NSSavePanel) async -> NSApplication.ModalResponse {
+        settingsPopover.performClose(nil)
+        picker.level = NoteDialogPresentation.sheetLevel(parent: panel.level)
+        return await withCheckedContinuation { continuation in
+            picker.beginSheetModal(for: panel) { continuation.resume(returning: $0) }
+        }
+    }
+    private func finishNoteDialog() {
+        presentingDialog = false
+        // Never activate an app the user left while its sheet was open.
+        if NSApp.isActive, model.isOpen, panel.isKeyWindow {
+            focusEditor(in: panel.contentView)
+        }
+        trackOpenPointer()
+    }
     private func clearEditorHistory(in view: NSView?) {
         guard let view else { return }
+        if let web = richEditor?.web, view === web { return }
         if let editor = view as? NoteTextView {
             editor.breakUndoCoalescing()
             editor.undoManager?.removeAllActions()

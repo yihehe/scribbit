@@ -1,10 +1,12 @@
 # Native editor and simple Shift-Tab
 
-Current native-editor design, version 0.5.2.
+Native source/fallback editor and native-only GUI harness design. Supported
+Markdown and untitled notes normally use [Milkdown](MILKDOWN-EDITOR.md); this
+reference describes the source editor, not the rich renderer.
 
 ## Decision and scope
 
-Scribbit uses Apple's NSTextView with a small adapter, not a from-scratch text
+Scribbit's source editor uses Apple's NSTextView with a small adapter, not a from-scratch text
 layout/input engine or a third-party editor fork. macOS 14 is the minimum.
 
 The only custom editing command is `NoteTextView.insertBacktab`. Normal Tab,
