@@ -45,10 +45,12 @@ See [motion design](NOTCH-UX.md) for the current settings.
 
 ## Reuse boundary
 
-The current package has no third-party runtime dependencies or bundled reference
-checkouts. Review licenses and retain required notices before importing any
-third-party implementation or assets. This API catalog is not legal clearance
-for source reuse and does not assert clean-room development.
+The native source editor and notch shell use Apple frameworks. The rich Markdown
+editor bundles Milkdown and its locked web dependencies, with their license
+notices and inventory. No research checkouts are shipped. Review licenses and
+retain required notices before importing other third-party implementations or
+assets. This API catalog is not legal clearance for source reuse and does not
+assert clean-room development.
 
 ### File observation
 
@@ -56,3 +58,16 @@ for source reuse and does not assert clean-room development.
 - [Apple File System Events guide](https://developer.apple.com/library/archive/documentation/Darwin/Conceptual/FSEvents_ProgGuide/UsingtheFSEventsFramework/UsingtheFSEventsFramework.html): advisory nature of change notification. FSEvents is not a runtime dependency.
 
 The implementation uses public native DispatchSource APIs, not third-party watcher code.
+
+
+## Milkdown editor dependencies
+
+The normal editor pins `@milkdown/crepe` and `@milkdown/kit` 7.23.0. The isolated
+developer build uses the same editor with RAM-only preferences.
+Primary references: https://milkdown.dev/docs/api/crepe and
+https://github.com/Milkdown/milkdown . Installed pinned source was inspected for
+`docSchema` terminal typing-paragraph serialization, list spread flags, the
+public headingIdGenerator configuration, reference parsing and image-block
+alt-to-ratio behavior. The image-block feature is disabled, not patched.
+Exact dependency licenses and inventories are retained with the bundled assets;
+see [MILKDOWN-EDITOR.md](MILKDOWN-EDITOR.md).

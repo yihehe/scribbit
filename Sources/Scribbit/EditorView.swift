@@ -10,22 +10,16 @@ struct NoteView: View {
     let reload: () -> Void
     var create: () -> Void = {}
     var showSettings: (NSButton) -> Void = { _ in }
+    var richEditor: RichMarkdownEditor? = nil
+    var toggleEditorMode: () -> Void = {}
+    var discardRichDraft: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {
-            if model.preview {
-                ScrollView {
-                    Text((try? AttributedString(markdown: model.text,
-                        options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(model.text))
-                        .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(18)
-                }.disabled(!model.isOpen)
+            if let richEditor {
+                RichNoteContent(model: model, editor: richEditor, discardRichDraft: discardRichDraft)
             } else {
-                NativeEditor(text: $model.text, selection: model.editorSelection,
-                             selectionRevision: model.selectionRevision,
-                             selectionChanged: model.rememberEditorSelection,
-                             scrollOrigin: model.editorScrollOrigin,
-                             scrollChanged: model.rememberEditorScrollOrigin)
-                    .disabled(!model.isOpen)
+                SourceNoteContent(model: model)
             }
             if model.isUntitled {
                 Divider()
@@ -73,23 +67,29 @@ struct NoteView: View {
                         ? (model.isDirty ? "Unsaved edits · saves when closed" : "File-backed note")
                         : "No note open")
                         .font(.caption).foregroundStyle(.secondary)
-                    HStack {
-                        Text(model.preview ? "Read-only preview · inline Markdown" : "UTF-8 · ⌘S to save")
-                        Spacer()
-                        Text("Esc / ⌘↵ to close")
-                    }.font(.caption).foregroundStyle(.secondary)
+                    if richEditor == nil {
+                        HStack {
+                            Text(model.preview ? "Read-only preview" : "UTF-8 · ⌘S to save")
+                            Spacer()
+                            Text("Esc / ⌘↵ to close")
+                        }.font(.caption).foregroundStyle(.secondary)
+                    }
                     HStack(spacing: 14) {
                         Group {
-                            EditorModeButton(isOn: $model.pinned,
+                            EditorModeButton(isOn: model.pinned,
                                 symbol: model.pinned ? "pin.fill" : "pin",
                                 label: "Pin note open",
                                 help: model.pinned ? "Unpin: close when pointer leaves" : "Pin note open",
-                                identifier: "pinNote")
-                            EditorModeButton(isOn: $model.preview,
-                                symbol: model.preview ? "pencil" : "eye",
-                                label: "Markdown preview",
-                                help: model.preview ? "Edit plain-text source" : "Preview Markdown",
-                                identifier: "previewMarkdown")
+                                identifier: "pinNote", action: { model.pinned.toggle() })
+                            if let richEditor {
+                                RichEditorModeButton(editor: richEditor, action: toggleEditorMode)
+                            } else {
+                                EditorModeButton(isOn: model.preview,
+                                    symbol: model.preview ? "pencil" : "eye",
+                                    label: "Markdown preview",
+                                    help: model.preview ? "Edit plain-text source" : "Preview Markdown",
+                                    identifier: "previewMarkdown", action: { model.preview.toggle() })
+                            }
                         }.disabled(!model.isOpen)
                         Spacer()
                         NotchControlButton(symbol: "gearshape", identifier: "openSettings",
@@ -112,16 +112,78 @@ struct NoteView: View {
     }
 }
 
+private struct SourceNoteContent: View {
+    @ObservedObject var model: NoteModel
+    var allowsPreview = true
+    var body: some View {
+        if allowsPreview && model.preview {
+            ScrollView {
+                Text((try? AttributedString(markdown: model.text,
+                    options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(model.text))
+                    .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(18)
+            }.disabled(!model.isOpen)
+        } else {
+            NativeEditor(text: $model.text, selection: model.editorSelection,
+                         selectionRevision: model.selectionRevision,
+                         selectionChanged: model.rememberEditorSelection,
+                         scrollOrigin: model.editorScrollOrigin,
+                         scrollChanged: model.rememberEditorScrollOrigin)
+                .disabled(!model.isOpen)
+        }
+    }
+}
+
+private struct RichNoteContent: View {
+    @ObservedObject var model: NoteModel
+    @ObservedObject var editor: RichMarkdownEditor
+    var discardRichDraft: () -> Void
+    var body: some View {
+        VStack(spacing: 4) {
+            if editor.active {
+                RichMarkdownView(editor: editor, readOnly: !model.isOpen || model.resetInProgress)
+                if editor.needsRecovery || model.error != nil {
+                    HStack {
+                        if editor.needsRecovery { Button("Restore Rich Draft") { editor.restore() } }
+                        Button("Discard Rich Draft…", action: discardRichDraft)
+                    }.padding(.horizontal, 12)
+                }
+            } else {
+                SourceNoteContent(model: model, allowsPreview: false)
+                if let reason = editor.fallbackReason {
+                    Text(reason).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
+                }
+            }
+        }
+    }
+}
+
+/// Selection reflects the successfully imported editor, not an optimistic binding.
+private struct RichEditorModeButton: View {
+    @ObservedObject var editor: RichMarkdownEditor
+    let action: () -> Void
+    var body: some View {
+        EditorModeButton(isOn: editor.active,
+            symbol: editor.active ? "chevron.left.forwardslash.chevron.right" : "textformat",
+            label: "Editor mode",
+            help: editor.active ? "Edit Markdown source" : "Edit rich Markdown",
+            identifier: "toggleEditorMode",
+            value: editor.active ? "Rich Markdown; switch to source" : "Markdown source; switch to rich",
+            action: action)
+    }
+}
+
 /// Editing modes are toolbar-style icon buttons, not preference checkboxes.
 private struct EditorModeButton: View {
-    @Binding var isOn: Bool
+    let isOn: Bool
     let symbol: String
     let label: String
     let help: String
     let identifier: String
+    var value: String? = nil
+    let action: () -> Void
 
     var body: some View {
-        Button { isOn.toggle() } label: {
+        Button(action: action) {
             Image(systemName: symbol)
                 .frame(width: 28, height: 24)
                 .foregroundStyle(isOn ? Color.accentColor : Color.secondary)
@@ -133,7 +195,7 @@ private struct EditorModeButton: View {
         .buttonStyle(.plain)
         .help(help)
         .accessibilityLabel(label)
-        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityValue(value ?? (isOn ? "On" : "Off"))
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier(identifier)
     }

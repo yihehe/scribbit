@@ -96,3 +96,19 @@ remain integration/manual checks until the workflow runs on GitHub.
 - [Artifact upload and permission limitations](https://github.com/actions/upload-artifact)
 - [Managing releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
 - [Immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
+
+## Rich-editor CI gate
+
+The read-only web-editor job installs locked public dependencies under
+WebEditor/Milkdown with lifecycle scripts disabled, regenerates and tests the
+actual shipped Milkdown bundle, and fails if JS/CSS/notices/runtime inventory or
+the asset manifest drift from committed output. Node 22.23.5 and setup-node v6
+commit 249970729cb0ef3589644e2896645e5dc5ba9c38 are pinned. The action pin was
+verified from the official actions/setup-node tag API and matching action.yml;
+the Node patch was verified from nodejs.org release metadata. Normal Swift builds
+still consume committed resources offline without Node.
+
+Rolling development publication requires both this job and macOS tests/build to
+succeed. It still downloads needs.macos.outputs.artifact, runs only on trusted
+main pushes, and preserves the existing stale-run and rollback protections. No
+local verification launches CI or publishes a release.

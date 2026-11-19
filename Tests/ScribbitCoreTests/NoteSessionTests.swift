@@ -24,6 +24,25 @@ private final class MemoryStore: NoteStore {
 
 final class NoteSessionTests {
     private let url = URL(fileURLWithPath: "/example/note.md")
+    @Test func utf8BOMCleanClosePreservesOriginalBytesAndEditsKeepEncodingMarker() throws {
+        let store = MemoryStore()
+        let original = Data("\u{FEFF}Original\r\n".utf8)
+        store.bytes = original
+        let session = NoteSession(store: store)
+        try session.open(url)
+        #expect(!session.isDirty)
+        try session.close()
+        #expect(store.writes == 0 && store.bytes == original)
+        try session.open(url)
+        session.text = "Edited\r\n"
+        try session.save()
+        #expect(store.bytes == Data("\u{FEFF}Edited\r\n".utf8))
+        #expect(!session.isDirty)
+        session.text = "Pending"
+        store.bytes = Data("Edited\r\n".utf8) // Same text, different exact bytes.
+        #expect(throws: NoteError.conflict) { try session.save() }
+        #expect(session.text == "Pending" && session.isDirty)
+    }
     @Test func confirmedResetDiscardsOnlyMemoryWithoutDiskIO() throws {
         let store = MemoryStore()
         let session = NoteSession(store: store)

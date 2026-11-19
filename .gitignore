@@ -18,3 +18,5 @@ xcuserdata/
 *.log
 __pycache__/
 *.pyc
+
+WebEditor/Milkdown/node_modules/

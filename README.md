@@ -1,7 +1,10 @@
 # Scribbit
 
+Scribbit includes [Milkdown rich Markdown editing](Docs/MILKDOWN-EDITOR.md), with
+an editable source mode and native fallback for unsupported or larger notes.
+
 A lightweight macOS notepad tucked into your notch. Hover to capture a thought,
-then get back to work. Plain-text files, Markdown preview, and no cloud required.
+then get back to work. Plain-text files, rich Markdown, and no cloud required.
 
 ![Rendered preview of Scribbit opening from the notch, typing a short note, and closing](Docs/Images/scribbit-demo.gif)
 
@@ -11,16 +14,17 @@ branding. Sample text and pointer are illustrative.
 [View the still image](Docs/Images/scribbit-demo.png).*
 
 **Status:** Development builds / build from source (version 0.5.2). No notarized download or universal
-binary is available yet. Editing uses Apple's NSTextView with a small
-Shift-Tab command; there are no third-party runtime packages.
+binary is available yet. Supported Markdown and untitled notes use bundled Milkdown/Crepe in an offline
+WKWebView. Native NSTextView handles source editing and fallback. Dependencies
+are pinned with complete license notices; see the editor documentation.
 
 A small native macOS app for one file-backed note, expanding directly
 from the notch with a spring-animated black silhouette. Move the pointer to
-the notch for 100 ms by default, start typing, and press **Done** or **Escape** to save and hide it.
+the notch for 100 ms by default, start typing, and press **Escape** to save and hide it.
 On displays without a notch, use the top-center 120-point strip.
 
 **Requirements:** macOS 14 or later; Swift 6 / modern Xcode Command Line Tools to
-build. There are no third-party runtime packages, web views, network services, or account.
+build. Rich editing bundles Milkdown in WKWebView; no network service or account is required.
 The app and supplied CLT test-framework fallback require macOS 14. Builds target the current architecture.
 
 ## Development downloads
@@ -83,14 +87,15 @@ target, not the symlink itself. Create does not truncate an existing file.
 | Normal Quit / system termination request | Attempts save; refuses termination if saving fails |
 | System sleep notification | Best-effort save; OS may suspend before it completes |
 | Cmd-S | Saves without hiding |
-| Tab / Shift-Tab | Tab inserts a literal tab. Shift-Tab removes one leading tab or up to four leading spaces from current/selected lines, with atomic undo/redo |
-| Cmd-F, Cmd-Z, Cmd-Shift-Z, clipboard shortcuts | Native find, undo, redo, cut/copy/paste |
+| Tab / Shift-Tab | Rich mode uses Milkdown's contextual list indentation/outdenting. Source mode inserts a literal tab or removes one leading tab/up to four leading spaces from current/selected lines, with native undo/redo |
+| Cmd-Z, Cmd-Shift-Z, clipboard shortcuts | Undo, redo, cut/copy/paste in the active editor; rich clipboard behavior follows Milkdown, including a Markdown plain-text representation |
+| Cmd-F in Source mode | Native editor find |
 | Expanded-section gear / Cmd-, | Open a transient settings popup. Cmd-, also works collapsed, anchored to the visible chevron, and with no file open |
 | Expanded section → Pin note open | Keep the working surface open across pointer exit/outside click/app switching |
-| Bottom chevron | Expand/collapse file information/full path, pin/preview, and settings gear; collapsed on each open |
+| Bottom chevron | Expand/collapse file information/full path, pin/editor mode, and settings gear; collapsed on each open |
 | Settings → Animation speed | Persisted 0.5×–2× playback rate in 0.25× steps; 1× keeps the reference motion profile |
 | Settings → Hover to open | Persisted 0–1000 ms entry delay in 50 ms steps; default 100 ms |
-| Expanded section → Preview Markdown | Read-only inline Markdown preview / plain source editing |
+| Expanded section → Editor mode | Switch between editable rich Markdown and source; conversion failure keeps the current draft |
 | Settings → Launch at Login | Enables/disables macOS Service Management registration |
 | Settings → Show frog beside notch | Optional frog-and-pencil mark inside a black extension connected to the camera; off by default |
 
@@ -115,7 +120,7 @@ Positions are kept only for the last file during this app run, not across quitti
 or switching files. Fresh disk contents remain authoritative. This is position
 restoration, not tracking a word as other editors insert text.
 
-The top header is gone. File information, a selectable full path, pin/preview
+The top header is gone. File information, a selectable full path, pin/editor-mode
 icon buttons, and the settings gear live in a bottom disclosure that starts closed.
 Filled/tinted button state shows the active editing modes; their accessible
 names, On/Off state, and help text remain available.
@@ -125,12 +130,13 @@ centered chevron visible. File actions,
 login, indicator, animation speed, hover delay, About, and Quit live in the native transient popup.
 Opening it inhibits automatic note dismissal while interacting with settings.
 Escape first dismisses settings, then a second Escape saves and closes the note.
-About contains only the app icon, name, version, and Close button. Its native
+About contains the app icon, name, version, Close, and the deliberately tucked-away
+Reset App action for first-time-setup testing. Its native
 sheet stays above the notch surface and below its camera-safe top boundary,
 rather than using an unparented app-modal window behind it.
 Save errors and recovery actions are never hidden by that disclosure. After explicitly closing over the notch, leave
 the trigger region before reentering to reopen. The pinned surface also ignores
-outside clicks/app deactivation, but Done/Escape and normal quit still save/close.
+outside clicks/app deactivation, but Escape, the settings Done action and normal quit still save/close.
 
 ## Animation and resting wing
 
@@ -205,23 +211,32 @@ To uninstall, disable Launch at Login first, quit, and delete the app.
 
 ## Markdown and resources
 
-Source text is authoritative and is never regenerated from formatted text.
-The preview uses Foundation's **inline-only, whitespace-preserving Markdown**:
-emphasis, strong text, code spans, and links. It is not a full Markdown renderer:
-headings, task lists, tables, images, HTML, and fenced code blocks have no special
-layout. No remote images are fetched. Switching preview modes recreates the text
-view and resets its native undo history; saving does not reset it.
+Markdown stays the on-disk format. Supported `.md` and untitled notes open in
+Milkdown rich editing; `.txt`, unsupported Markdown (including images/raw HTML)
+and files beyond the 1 MiB initial rich-admission bound stay editable in native Source.
+Use the expanded-footer **Editor mode** button to switch between editable Rich
+and Source. Switching converts the current unsaved draft only after validation;
+it does not save or reset the file's conflict baseline. Failed conversion retains
+the current editable draft and explains why. No JSON note migration occurs. Already-loaded rich drafts may grow beyond 1 MiB
+and still save/switch to Source, up to the normal file limit; a 2 MiB canonical
+rich-document quota rejects oversized edits before inserting them.
 
-Idle behavior is event-driven: no recurring timers, polling loops, network
-requests, or Markdown parsing while hidden. Native file/parent observations
-invalidate the selected-note RAM snapshot without background rereads. Finite
-cancellable work items handle hover entry/exit and transitions. Core Animation morphs a mask
-inside a fixed window; the editor is not relaid out on every frame. Screen layouts
-update on display-change
-notifications. Rendering is native AppKit/SwiftUI. Resource claims are design
-properties, not a universal measured CPU/RAM guarantee; see the test report and
-manual profiling instructions. The [file-watching benchmark](Docs/FILE-WATCHING-PERFORMANCE.md)
-compares warm core/storage paths, not whole-app UI performance.
+Lists, tasks, code fences/highlighting, headings, tables and ordinary links are
+supported. Images and image paste/drop are not yet enabled. Clean close/save and
+Undo-to-baseline preserve original Markdown bytes, including BOM/CRLF; actual
+rich edits can normalize Markdown spelling/layout after semantic checks. Keep
+backups for valuable notes. See [editor behavior and limits](Docs/MILKDOWN-EDITOR.md).
+
+Idle work is event-driven: no app-owned recurring polling/network timers or
+Markdown parsing while hidden. Native file/parent observations invalidate the
+selected-note RAM snapshot without background rereads. Finite work handles hover,
+transitions and visible-editor RAM checkpoints. Core Animation morphs a fixed
+window mask, avoiding per-frame editor relayout. The shell and source editor are
+native AppKit/SwiftUI; rich content uses a warm nonpersistent WebKit process with
+bundled offline assets, denied network/external navigation and no remote images.
+Whole-app plus WebKit startup, idle and memory costs are not measured yet; do not
+interpret component tests or the [file-watching benchmark](Docs/FILE-WATCHING-PERFORMANCE.md)
+as proof of lightweight whole-app performance.
 
 ## Privacy
 

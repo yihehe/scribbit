@@ -1,5 +1,47 @@
 # Scribbit — contributor and agent guide
 
+## Milkdown editing integration
+
+Read `Docs/MILKDOWN-EDITOR.md` and `Docs/MILKDOWN-PRODUCTIONIZATION.md`.
+Normal launch uses Milkdown for supported Markdown and untitled notes, with the
+existing persistent preferences, bookmarks, bundle identity and login behavior.
+Native source remains the fallback for .txt, unsupported constructs and large
+notes. The separate marked developer build still uses RAM preferences/no login;
+native GUI harnesses explicitly retain their native baseline, not rich coverage.
+Dependencies are pinned under WebEditor/Milkdown with complete notices/offline
+routing. No JSON note format, automatic migration or clean-note rewrite exists.
+Preserve native-owned unchanged-tree authority before serialization, exact-byte
+conflicts, async settlement/discard distinction and camera-safe native sheets.
+Never broadly strip blank paragraphs/attrs to force exports through. Only known
+list-item marker metadata may be projected from an actual bullet/ordered parent;
+parent order, checked state, nesting/text/paragraphs and unknown/custom attrs stay
+strict. Keep export diagnostics content-free: bounded schema paths/categories,
+never note text, URLs or attribute values. Images are
+explicitly deferred pending safe authorized storage. One editable Rich/Source
+toggle occupies the old preview position; do not bind it to read-only state.
+Switching settles current unsaved source under the model busy gate without saving
+or moving the file baseline. Failed conversion retains the originating editable
+mode. Explicit rich discard is recovery-only. Keep the native harness's preview
+behavior independent. Only one explicitly armed exact native page load may
+navigate WebKit; links/reloads must not replace a live draft. Each native boot
+rotates its page nonce; note generations change only for explicit note actions.
+Initial rich admission is
+1 MiB, canonical-document quota is 2 MiB and source persistence uses the existing
+64 MiB core cap. Reject over-quota document transactions before application;
+never strand an admitted draft by applying the admission threshold to exports.
+Keep the native and JavaScript nesting bound aligned: root depth zero, every
+node below depth 100. Reject deeper transactions before mutation and fail invalid
+matching snapshot replies immediately. Rich history shortcuts require actual
+focus in the key note window, not just active rich mode; auxiliary fields retain
+native history routing.
+Keep the floating block grip/add widget disabled through the public blockConfig
+filter after Crepe's defaults. Do not disable the entire BlockEdit feature: slash
+commands must remain available. Pinned 7.23.0 does not consume its declared
+blockHandle.shouldShow option; verify actual provider behavior, not just config.
+Do not claim headless tests prove physical IME, WebKit, accessibility or whole-app
+performance. No launch, real notes/preferences/login/reset, commit or push without
+authorization. Incognito: no external session/vault logging or activity uploads.
+
 ## Start here
 
 1. Read README.md, Docs/ARCHITECTURE.md, Docs/NATIVE-EDITOR.md,
@@ -25,8 +67,8 @@
   lines. Do not introduce a protocol, package or general framework for an
   imagined future consumer. Preserve useful complexity that serves the UX.
 - Swift native AppKit + SwiftUI, macOS 14 minimum; Swift 6 tools and Swift 5
-  language mode. No third-party runtime dependencies. Do not add a dependency or
-  editor fork without approval. Preserve bookmarks and settings.
+  language mode. Pinned Milkdown runtime dependencies are approved. Do not add another dependency
+  or editor fork without approval. Preserve bookmarks and settings.
 - Preserve the `NoteStore` protocol boundary and UI-independent `NoteSession`.
 - `SessionWorker` exclusively owns session access. Main-actor UI must not perform
   file coordination or reads/writes on the UI thread.
@@ -92,7 +134,9 @@
   source follows history changes. Filter by manager identity, capture weakly and
   remove observers on teardown/deinit. This is synchronization, not a custom
   undo engine.
-- Source text is authoritative. Preview is read-only and intentionally limited.
+- Markdown files remain authoritative. Rich edits serialize only after safety
+  checks; unchanged rich documents reuse the original bytes. Native-harness
+  preview is read-only and intentionally limited.
 - Keep the last file's caret/selection separate from hidden source release.
   Position is RAM-only, resets on successful file switch, and clamps to composed
   UTF-16 character boundaries after fresh reads. Selection checkpoints must not
