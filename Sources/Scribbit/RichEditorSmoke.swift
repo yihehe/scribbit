@@ -95,6 +95,41 @@ final class RichEditorSmoke: NSObject, NSApplicationDelegate {
         try require(try Data(contentsOf: fixture) == Data(original.utf8), "Clean capture rewrote source")
         print("RICH_BRIDGE_UNCHANGED_PASS")
 
+        // Paste a complete list into an empty document. At a heading caret,
+        // ProseMirror may legitimately fit a one-item slice as inline content.
+        try require(await model.changeEditorMode(toRich: false, importRich: { _, _ in false },
+            activateSource: { editor.deactivateToSource() }), "Clipboard fixture source switch failed")
+        model.text = ""
+        try require(await model.changeEditorMode(toRich: true, importRich: { source, url in
+            await editor.prepare(source: source, url: url)
+            return editor.active
+        }, activateSource: {}), "Clipboard fixture rich switch failed")
+        let clipboardPassed = try await js(editor, """
+            const root = document.querySelector(".ProseMirror");
+            root.focus();
+            const formats = {
+              "text/html": "<ul><li><p><strong>clipboard-marker</strong></p></li></ul>",
+              "text/plain": "clipboard-marker"
+            };
+            const paste = new Event("paste", {bubbles: true, cancelable: true});
+            Object.defineProperty(paste, "clipboardData", {value: {
+              files: [], getData: kind => formats[kind] ?? ""
+            }});
+            root.dispatchEvent(paste);
+            return {
+              ok: [...root.querySelectorAll("li strong")].some(
+                item => item.textContent === "clipboard-marker"),
+              prevented: paste.defaultPrevented, editable: root.contentEditable,
+              marker: root.textContent.includes("clipboard-marker"),
+              lists: root.querySelectorAll("li").length,
+              strong: root.querySelectorAll("strong").length
+            };
+            """) as? [String: Any]
+        try require(clipboardPassed?["ok"] as? Bool == true, "Rich HTML paste lost structure: \(clipboardPassed ?? [:])")
+        await model.save()
+        try require(model.error == nil, "Pasted list failed snapshot validation")
+        print("RICH_BRIDGE_CLIPBOARD_PASS")
+
         try await paste("appended", into: editor)
         await model.save()
         try require(model.error == nil && model.text.contains("appended"), "Rich edit failed to reach native save")

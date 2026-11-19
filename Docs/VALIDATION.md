@@ -1,5 +1,33 @@
 # Validation record
 
+## Rich clipboard formatting — November 18, 2026
+
+Rich copy keeps upstream HTML and replaces Milkdown's Markdown plain-text
+fallback with readable text. Rich HTML paste uses the upstream schema-parsed
+slice instead of forcing text/plain. Native Source mode and note persistence
+are unchanged; unsupported image/HTML nodes and size/depth guards remain active.
+
+| Check | Result / scope |
+| --- | --- |
+| Bundled editor | 41 tests passed: actual copy event emits HTML list/bold and readable text, paste roundtrip preserves structure/marks, external ordered-list start/italic survives, code paste stays literal, image/read-only/quota guards reject without mutation |
+| Native/core/filesystem | 166 tests in 27 suites passed with host coordination |
+| Offline publisher/workflow/wrapper | 26 tests passed with the new required clipboard marker |
+| Real WebKit | Rich harness passed including synthetic HTML list/bold paste and native save/snapshot validation |
+| Build | Fresh release under build/rich-clipboard/Scribbit.app; signature and whitespace checks passed |
+| Limits | The harness uses in-memory synthetic clipboard events, never the system clipboard. Actual macOS copy delivery and destination-app behavior require manual acceptance |
+
+The initial synthetic WebKit copy fixture did not produce clipboard formats and
+was not counted as copy acceptance. Copy representations are tested with the
+actual bundled editor in JSDOM; the real-WebKit gate tests HTML paste. A list
+pasted at a heading caret can legitimately fit inline; the final structure test
+uses an empty note established through the normal editable mode-switch boundary.
+No production DOM rewriting or test-only editor access was added.
+
+Ignored evidence: build/rich-clipboard-web-tests.log,
+build/rich-clipboard-swift-tests.log, build/rich-clipboard-ci-tests.log,
+build/rich-clipboard-build.log and build/rich-clipboard-smoke/run.log.
+No commit, push, normal app restart or user-note inspection was performed.
+
 ## Full-codebase audit follow-up — November 18, 2026
 
 Baseline: merged main b87dbc1, local branch stephen.he/codebase-audit. Findings,
