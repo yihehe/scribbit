@@ -691,6 +691,80 @@ test("multiline clipboard text and code whitespace use actual upstream-compatibl
   }
 });
 
+function pasteFormats(f, formats) {
+  const event = new f.win.Event("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", {
+    value: { files: [], getData: (kind) => formats[kind] ?? "" },
+  });
+  f.api.view().dom.dispatchEvent(event);
+}
+test("rich clipboard copies HTML plus readable text and preserves formatted lists on paste", async () => {
+  const f = await setup("- **one**\n- two\n");
+  try {
+    const v = f.api.view(), textRanges = [];
+    v.state.doc.descendants((node, pos) => {
+      if (node.isText) textRanges.push([pos, pos + node.nodeSize]);
+    });
+    v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(
+      v.state.doc, textRanges[0][0], textRanges.at(-1)[1],
+    )));
+    const formats = {};
+    const copy = new f.win.Event("copy", { bubbles: true, cancelable: true });
+    Object.defineProperty(copy, "clipboardData", {
+      value: { clearData() {}, setData: (kind, value) => { formats[kind] = value; } },
+    });
+    v.dom.dispatchEvent(copy);
+    assert.match(formats["text/html"], /<ul/);
+    assert.match(formats["text/html"], /<strong>one<\/strong>/);
+    assert.equal(formats["text/plain"], "one\ntwo");
+    pasteFormats(f, formats);
+    assert.equal(v.state.doc.firstChild.type.name, "bullet_list");
+    assert.equal(v.state.doc.firstChild.childCount, 2);
+    assert.equal(v.state.doc.textContent, "onetwo");
+    assert.equal(v.state.doc.firstChild.firstChild.firstChild.firstChild.marks[0].type.name, "strong");
+    const result = flush(f);
+    assert.equal(result.type, "snapshot", JSON.stringify(result));
+  } finally { f.close(); }
+});
+test("external HTML paste keeps supported structure while code paste stays literal", async () => {
+  for (const code of [false, true]) {
+    const f = await setup(code ? "```text\nstart\n```\n" : "\n");
+    try {
+      if (code) selectText(f, "start", 5);
+      pasteFormats(f, {
+        "text/html": "<ol start='3'><li><p><em>alpha</em></p></li><li><p>beta</p></li></ol>",
+        "text/plain": "alpha\nbeta",
+      });
+      const doc = f.api.view().state.doc;
+      if (code) {
+        assert.equal(doc.firstChild.type.name, "code_block");
+        assert.equal(doc.firstChild.textContent, "startalpha\nbeta");
+      } else {
+        assert.equal(doc.firstChild.type.name, "ordered_list");
+        assert.equal(doc.firstChild.attrs.order, 3);
+        assert.equal(doc.firstChild.firstChild.firstChild.firstChild.marks[0].type.name, "emphasis");
+      }
+      const result = flush(f);
+      assert.equal(result.type, "snapshot", JSON.stringify(result));
+    } finally { f.close(); }
+  }
+});
+test("rich HTML paste cannot bypass unsupported-node, read-only or quota guards", async () => {
+  const f = await setup("Retain me\n");
+  try {
+    const v = f.api.view(), before = v.state.doc;
+    pasteFormats(f, { "text/html": '<p>text<img src="https://example.invalid/image.png"></p>', "text/plain": "text" });
+    assert.ok(v.state.doc.eq(before));
+    assert.match(f.messages.findLast((m) => m.type === "error").message, /not supported/);
+    f.win.scribbit.readOnly(true);
+    pasteFormats(f, { "text/html": "<p><strong>blocked</strong></p>", "text/plain": "blocked" });
+    assert.ok(v.state.doc.eq(before));
+    f.win.scribbit.readOnly(false);
+    pasteFormats(f, { "text/html": "<p>" + "x".repeat(2 * 1024 * 1024) + "</p>", "text/plain": "x" });
+    assert.ok(v.state.doc.eq(before));
+  } finally { f.close(); }
+});
+
 test("empty table cells and task toggles survive edited Markdown and reopen", async () => {
   for (const source of [
     "| A | B |\n| - | - |\n|  | value |\n",

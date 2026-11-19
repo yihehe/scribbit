@@ -447,11 +447,29 @@ const integration = $prose(
       },
     }),
 );
-function handlePaste(_view, event) {
+function handlePaste(_view, event, parsedSlice) {
   if (locked || readOnly) return true;
   if (event.clipboardData?.files.length) {
     event.preventDefault();
     fail("Image paste is not supported yet. Nothing was inserted or written.");
+    return true;
+  }
+  // ProseMirror has already parsed clipboard HTML through the editor schema
+  // and upstream transforms. Preserve that slice instead of flattening it.
+  // Code blocks still use literal plain text, and unsupported image/HTML nodes
+  // remain rejected before any insertion.
+  if (
+    event.clipboardData?.getData("text/html") &&
+    !_view.state.selection.$from.parent.type.spec.code &&
+    parsedSlice
+  ) {
+    event.preventDefault();
+    try {
+      supportedDocument(parsedSlice.content);
+      _view.dispatch(_view.state.tr.replaceSelection(parsedSlice).scrollIntoView());
+    } catch {
+      fail("This clipboard content is not supported. Nothing was inserted.");
+    }
     return true;
   }
   const text = event.clipboardData?.getData("text/plain");
@@ -606,6 +624,10 @@ async function boot() {
     ctx.set(headingIdGenerator.key, () => "");
     ctx.update(editorViewOptionsCtx, (options) => ({
       ...options,
+      // Leave ProseMirror's rich HTML serialization intact. Plain-text-only
+      // destinations receive readable text, not Milkdown's Markdown fallback.
+      clipboardTextSerializer: (slice) =>
+        slice.content.textBetween(0, slice.content.size, "\n"),
       handlePaste,
       handleDrop: (_view, event) => {
         event.preventDefault();

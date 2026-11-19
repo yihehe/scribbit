@@ -20,6 +20,16 @@ unrelated or stale responses remain ignored.
 
 ## Builds and safe developer evaluation
 
+Rich copy retains ProseMirror's schema-generated HTML and supplies readable
+plain text instead of Markdown markers. Rich paste accepts the upstream-parsed
+schema slice when HTML is present; code blocks and plain-text paste remain
+literal. Unsupported image/HTML document nodes are rejected before insertion;
+size/depth transaction guards still apply. Source editing and on-disk Markdown
+are unchanged. The destination app chooses a clipboard representation, so rich
+formatting is not guaranteed in plain-text-only applications. Plain-text fallback
+keeps line breaks but does not synthesize bullets, numbering or checkbox glyphs.
+No native clipboard bridge or arbitrary HTML renderer is added.
+
 `Scripts/build-app.sh` produces the normal signed app with rich Markdown enabled.
 Building does not launch, touch real preferences/notes or register login items.
 The separately marked developer helper remains available:

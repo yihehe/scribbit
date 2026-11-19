@@ -13,6 +13,11 @@ Both GUI harnesses require authorization and disposable project-local fixtures.
 
 ## Milkdown editing integration
 
+Rich clipboard uses upstream HTML plus readable plain text, not a Markdown
+plain-text fallback. HTML paste uses the already schema-parsed slice; preserve
+literal code/plain-text paste and the unsupported image/HTML and quota guards.
+Do not treat synthetic copy/paste tests as OS clipboard interoperability evidence.
+
 Read `Docs/MILKDOWN-EDITOR.md` and `Docs/MILKDOWN-PRODUCTIONIZATION.md`.
 Normal launch uses Milkdown for supported Markdown and untitled notes, with the
 existing persistent preferences, bookmarks, bundle identity and login behavior.
