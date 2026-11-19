@@ -43,6 +43,7 @@ not CSS that merely hides an active placeholder.
 | Exact no-attribute standalone `<br>`, `<br/>`, `<br />` | Admitted only in upstream empty-paragraph placeholder positions. Attributed/event-handler tags, inline HTML and other tags remain fallback |
 | Images in existing source | Native fallback until authorized asset storage is integrated |
 | Image/file paste/drop | Clearly rejected before inserting/writing bytes; not silently broken |
+| Floating block drag/add handle | Disabled through the public block target filter; BlockEdit stays enabled so slash commands still work |
 | Automatic heading DOM ids | Public `headingIdGenerator` configured to return empty ids; derived anchors are not part of this editor. Actual heading levels/text and Markdown link semantics stay checked |
 
 ### Separate admission, document and file limits
@@ -139,6 +140,25 @@ semantics before the ProseMirror roundtrip check can miss them. It resolves only
 used link definitions, retaining unused definitions for rejection and rejecting
 duplicates. Definitions, text and URLs are not blindly discarded. This finite
 adapter/corpus is not a proof of losslessness for arbitrary Markdown.
+
+## Block controls
+
+The floating gutter block widget (drag grip and its attached add button) is not
+shown for paragraphs, list items or other blocks. This uses the public
+`@milkdown/kit/plugin/block` `blockConfig.filterNodes` callback, appended after
+Crepe's default BlockEdit configuration so there are no eligible drag targets.
+BlockEdit itself stays enabled: disabling it would also remove the slash menu.
+Pinned 7.23.0 declares a blockHandle.shouldShow option but its provider does not
+consume it, so the editor does not rely on that ineffective option, CSS-only
+hiding, vendor edits or production DOM mutation.
+
+The actual bundled headless regression supplies only geometric hit-testing,
+then drives the real pointer handler/service/provider: configured targets keep
+the handle hidden, a positive control permits the same handle to show, and the
+production filter hides it again. A separate regression types slash queries and
+runs the real Bullet List, Task List and Code actions. Existing keyboard-created
+lists/tasks/fences and Tab/Shift-Tab regressions remain. These are not physical
+macOS pointer/visual acceptance tests.
 
 ## Real application lifecycle
 
@@ -247,7 +267,7 @@ under `WebEditor/Milkdown/licenses/remark-math-LICENSE` and included in notices.
 
 | Check | Evidence / result |
 | --- | --- |
-| Actual bundled editor tests | 35 tests; real keyboard transactions, no-edit/Undo, source/edited corpus, task toggle, list Tab/Shift-Tab, code whitespace, tables/empty cells, links/references/orphans, plain multiline paste, composition DOM events, state locks, history, generation clears, first-focus caret settlement and upstream unsafe-link DOM neutralization, empty-placeholder removal and mode replacement/generation isolation |
+| Actual bundled editor tests | 37 tests; real keyboard transactions, no-edit/Undo, source/edited corpus, task toggle, list Tab/Shift-Tab, code whitespace, tables/empty cells, links/references/orphans, plain multiline paste, composition DOM events, state locks, history, generation clears, first-focus caret settlement and upstream unsafe-link DOM neutralization, empty-placeholder removal and mode replacement/generation isolation |
 | Native/core/filesystem suite | 159 tests in 25 suites with approved host coordination; includes resource hashes, source authority, settlement/failure/conflict/reset and close-before-clear and bidirectional no-save mode-switch regressions |
 | Signed app builds | Fresh normal app and separate RAM-only developer app; strict signature verification |
 | CI helpers | Three system-Bash scenarios and 19 offline publisher/workflow contract tests; no hosted publication |
@@ -255,8 +275,8 @@ under `WebEditor/Milkdown/licenses/remark-math-LICENSE` and included in notices.
 | Whole-app startup/open/close/idle/hidden CPU and app-plus-WebKit RSS | Not measured; no resource budget or lightweight-performance claim |
 | Real notes/preferences/login/install/restart/commit/push | Not performed; only normal entrypoint enablement changed by explicit authorization |
 
-Local logs live in ignored `build/milkdown-list-fix-js-tests.log`,
-`build/milkdown-list-fix-tests.log`, `build/milkdown-list-fix-build.log` and related
+Local logs live in ignored `build/milkdown-no-block-handle-js-tests.log`,
+`build/milkdown-no-block-handle-tests.log`, `build/milkdown-no-block-handle-build.log` and related
 synthetic corpus/characterization JSON files. Initial sandboxed coordination
 failures were rerun with approved host access; coordination was not bypassed.
 

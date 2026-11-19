@@ -1,5 +1,31 @@
 # Validation record
 
+## Hide the floating block drag/add widget — November 18, 2026
+
+The floating widget beside blocks is disabled without disabling slash commands.
+A public blockConfig.filterNodes override is registered after Crepe's default
+BlockEdit setup. No targets are eligible, so the real block service/provider
+never activates the gutter drag grip or its attached add button. BlockEdit itself
+remains enabled; no vendor patch, production DOM hack or CSS-only hiding was used.
+The declared blockHandle.shouldShow callback is not consumed by pinned 7.23.0's
+provider, so it was deliberately not used.
+
+| Check | Result / scope |
+| --- | --- |
+| Actual bundled JavaScript | **37 tests passed**, including the existing list/task/code-fence/Tab/Shift-Tab and unchanged-source/list-safety regressions |
+| Actual block event path | Headless geometric hit-testing drives the real pointer handler/filter/service/provider: disabled target filter hides the widget, positive control enables it, restoring the production filter hides it again |
+| Slash menu | Actual slash text opens the menu and real Bullet List, Task List and Code actions create editable/saveable content |
+| Native/core/filesystem | **159 tests in 25 suites passed** with approved filesystem coordination |
+| Helper suites | Three system-Bash runner scenarios and 19 offline publisher/workflow contract tests passed |
+| Separate signed builds | build/milkdown-no-block-handle/Scribbit.app and build/milkdown-no-block-handle-isolated/Scribbit Milkdown Candidate.app built; deep strict signatures verified |
+| Native UI / real data | No launch, restart, user-note/DOM inspection, real preferences/login/reset, commit or push; physical macOS pointer/visual acceptance not performed |
+
+Ignored evidence is under build/milkdown-no-block-handle-*. The first test attempt
+selected an old empty provider element from queued headless initialization;
+selecting the actual populated widget made the positive control meaningful.
+The configuration alone was not treated as behavioral proof.
+
+
 ## Mixed-list edit export guard — November 18, 2026
 
 The reported list-edit serialization refusal was reproduced without user notes:

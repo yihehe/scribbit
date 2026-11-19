@@ -29,6 +29,10 @@ Initial rich admission is
 1 MiB, canonical-document quota is 2 MiB and source persistence uses the existing
 64 MiB core cap. Reject over-quota document transactions before application;
 never strand an admitted draft by applying the admission threshold to exports.
+Keep the floating block grip/add widget disabled through the public blockConfig
+filter after Crepe's defaults. Do not disable the entire BlockEdit feature: slash
+commands must remain available. Pinned 7.23.0 does not consume its declared
+blockHandle.shouldShow option; verify actual provider behavior, not just config.
 Do not claim headless tests prove physical IME, WebKit, accessibility or whole-app
 performance. No launch, real notes/preferences/login/reset, commit or push without
 authorization. Incognito: no external session/vault logging or activity uploads.

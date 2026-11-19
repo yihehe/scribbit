@@ -1431,3 +1431,110 @@ test("splitting a restarted numbered list preserves both actual starting orders"
     f.close();
   }
 });
+
+test("actual block hover service cannot activate the floating handle while slash remains enabled", async () => {
+  const f = await setup("- parent\n- child\n");
+  try {
+    const v = f.api.view();
+    await new Promise((resolve) => f.win.requestAnimationFrame(resolve));
+    await new Promise((resolve) => f.win.requestAnimationFrame(resolve));
+    const handle = f.win.document
+      .querySelector(".milkdown-block-handle .operation-item")
+      ?.closest(".milkdown-block-handle");
+    assert.ok(
+      handle,
+      "Upstream BlockEdit is still installed, not globally disabled",
+    );
+    assert.ok(
+      v.state.plugins.some((plugin) => plugin.key.startsWith("CREPE_MENU")),
+    );
+    const ctx = f.api.crepe.editor.ctx;
+    const original = ctx.get("blockConfig").filterNodes;
+    const child = v.dom.querySelectorAll(".milkdown-list-item-block")[1];
+    assert.ok(child);
+    // JSDOM has no layout/hit-testing. Mock only geometry, leaving the actual
+    // bundled pointer handler, target lookup/filter and provider intact.
+    f.win.document.elementFromPoint = () => child;
+    const originalCoords = v.posAtCoords;
+    v.posAtCoords = () => ({ pos: 13, inside: 12 });
+    let checks = 0;
+    ctx.update("blockConfig", (config) => ({
+      ...config,
+      filterNodes: (pos, node) => {
+        checks++;
+        return original(pos, node);
+      },
+    }));
+    const hover = async () => {
+      v.dom.dispatchEvent(
+        new f.win.MouseEvent("pointermove", {
+          bubbles: true,
+          clientX: 10,
+          clientY: 10,
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    };
+    await hover();
+    assert.ok(checks > 0, "Actual service queried the configured filter");
+    assert.equal(handle.dataset.show, "false");
+    // Positive control: the same service/geometry must show a real handle when
+    // targets are allowed; otherwise a permanently-hidden fixture proves nothing.
+    ctx.update("blockConfig", (config) => ({
+      ...config,
+      filterNodes: () => true,
+    }));
+    await hover();
+    assert.equal(handle.dataset.show, "true");
+    ctx.update("blockConfig", (config) => ({
+      ...config,
+      filterNodes: original,
+    }));
+    await hover();
+    assert.equal(handle.dataset.show, "false");
+    v.posAtCoords = originalCoords;
+    assert.equal(flush(f).type, "snapshot");
+  } finally {
+    f.close();
+  }
+});
+
+test("slash menu still opens and runs real bullet, task and code-block actions", async () => {
+  for (const [query, label, expected] of [
+    ["/bullet", "Bullet List", "bullet_list"],
+    ["/task", "Task List", "bullet_list"],
+    ["/code", "Code", "code_block"],
+  ]) {
+    const f = await setup("");
+    try {
+      const v = f.api.view();
+      v.focus();
+      type(f, query);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const menu = f.win.document.querySelector(".milkdown-slash-menu");
+      assert.ok(menu);
+      assert.equal(menu.dataset.show, "true", query);
+      const item = [...menu.querySelectorAll(".menu-groups li")].find(
+        (node) => node.textContent.trim() === label,
+      );
+      assert.ok(item, `Actual slash action ${label} is present`);
+      item.dispatchEvent(
+        new f.win.MouseEvent("pointerup", { bubbles: true, cancelable: true }),
+      );
+      assert.equal(v.state.doc.firstChild.type.name, expected);
+      if (query === "/task")
+        assert.equal(v.state.doc.firstChild.firstChild.attrs.checked, false);
+      type(f, "created");
+      const result = flush(f, `slash-${expected}`);
+      assert.equal(result.type, "snapshot", JSON.stringify(result));
+      assert.ok(result.source.includes("created"));
+      assert.ok(
+        [...f.win.document.querySelectorAll(".milkdown-block-handle")].every(
+          (handle) => handle.dataset.show === "false",
+        ),
+      );
+    } finally {
+      f.close();
+    }
+  }
+});

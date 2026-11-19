@@ -11,6 +11,7 @@ import { Plugin, EditorState, TextSelection } from "@milkdown/kit/prose/state";
 import { undo, redo, undoDepth, redoDepth } from "@milkdown/kit/prose/history";
 import { $prose } from "@milkdown/kit/utils";
 import { headingIdGenerator } from "@milkdown/kit/preset/commonmark";
+import { blockConfig } from "@milkdown/kit/plugin/block";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/classic-dark.css";
 import "./style.css";
@@ -584,6 +585,13 @@ async function boot() {
     },
   });
   crepe.editor.config((ctx) => {
+    // Crepe's BlockEdit also supplies slash commands, so keep that feature.
+    // Override its earlier default target filter through the public block API;
+    // no eligible block means the floating grip/add handle never activates.
+    ctx.update(blockConfig.key, (config) => ({
+      ...config,
+      filterNodes: () => false,
+    }));
     // Derived DOM ids are not Markdown content. Disable the upstream decoration
     // publicly instead of relaxing the document's attribute-equivalence guard.
     ctx.set(headingIdGenerator.key, () => "");
