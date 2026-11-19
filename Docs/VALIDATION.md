@@ -1,5 +1,25 @@
 # Validation record
 
+## Disable selection formatting toolbar — November 19, 2026
+
+The floating bold/italic selection popup is disabled through the built-in
+Crepe.Feature.Toolbar flag. The plugin is excluded, not hidden through CSS.
+Link tooltips, table UI and slash commands retain their existing configuration.
+
+| Check | Result / scope |
+| --- | --- |
+| Editor JavaScript | 47 tests passed, including selecting text, executing actual bold/emphasis commands, verifying marks/saveable snapshot and absence of the toolbar DOM widget |
+| Existing parity coverage | 285 must-save fixture edits remain passing within the editor suite |
+| Native/core/resources | 166 tests in 27 suites passed with host file coordination |
+| Offline helpers | 26 tests passed |
+| Build | Fresh build/no-format-toolbar/Scribbit.app; strict signature and whitespace checks passed |
+| Scope | Build-time library flag, not a new Scribbit settings preference. No app restart, physical selection acceptance, commit or push performed |
+
+The configuration inventory is in
+[MILKDOWN-CONFIGURATION.md](MILKDOWN-CONFIGURATION.md).
+Ignored evidence: build/no-toolbar-web-tests.log, build/no-toolbar-swift-tests.log,
+build/no-toolbar-ci-tests.log and build/no-toolbar-build.log.
+
 ## Markdown parity follow-up — November 19, 2026
 
 Baseline: main c87263c. Current contracts and implementation are in

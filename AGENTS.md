@@ -25,6 +25,10 @@ Both GUI harnesses require authorization and disposable project-local fixtures.
 
 ## Milkdown editing integration
 
+The floating selection formatting toolbar is disabled with the built-in
+Crepe.Feature.Toolbar flag, not CSS. Keep formatting commands/keymaps and the
+slash menu. Docs/MILKDOWN-CONFIGURATION.md maps library options to app ownership.
+
 Rich clipboard uses upstream HTML plus readable plain text, not a Markdown
 plain-text fallback. HTML paste uses the already schema-parsed slice; preserve
 literal code/plain-text paste and the unsupported image/HTML and quota guards.

@@ -609,6 +609,7 @@ async function boot() {
       [Crepe.Feature.Latex]: false,
       [Crepe.Feature.AI]: false,
       [Crepe.Feature.TopBar]: false,
+      [Crepe.Feature.Toolbar]: false,
       [Crepe.Feature.ImageBlock]: false,
       [Crepe.Feature.Placeholder]: false,
     },

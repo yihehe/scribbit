@@ -20,6 +20,11 @@ unrelated or stale responses remain ignored.
 
 ## Library configuration versus Scribbit customization
 
+See [MILKDOWN-CONFIGURATION.md](MILKDOWN-CONFIGURATION.md) for the feature and
+extension-point inventory. The selection formatting toolbar is disabled through
+Crepe.Feature.Toolbar=false; this does not disable formatting commands or
+Markdown support.
+
 Whitespace parity uses public text-node, remark and stringify extension points.
 A serialization-only whitespace leaf prevents the transformer from moving
 boundary whitespace outside marks; a soft-break transform preserves decoded
