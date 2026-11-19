@@ -1,5 +1,41 @@
 # Validation record
 
+## Full-codebase audit follow-up — November 18, 2026
+
+Baseline: merged main b87dbc1, local branch stephen.he/codebase-audit. Findings,
+fixes, architecture risks and future-agent testing contracts are recorded in
+[CODEBASE-AUDIT.md](CODEBASE-AUDIT.md). This entry supersedes older statements
+that no native/WebKit integration harness has been run; it does not supersede
+unperformed physical-input or whole-app resource gates.
+
+| Check | Result / scope |
+| --- | --- |
+| Red/green storage regression | New Save As test initially failed three assertions: own-BOM draft rejected and raced BOM-only byte difference accepted. After the raw-byte adoption fix all pass; equal serialized bytes do not trigger an unnecessary rewrite |
+| Red/green recovery regression | Double Restore initially emitted SWIFT TASK CONTINUATION MISUSE despite pass markers. The wrapper rejected that run; single-flight restoration now passes double-click and real timeout/retry cases without the warning |
+| Swift/native/core/filesystem | **166 tests in 27 suites passed** with approved host coordination |
+| Bundled JavaScript | **38 tests passed**; regenerated JS/CSS/notices/inventory/hash manifest match the baseline byte-for-byte |
+| Offline CI/publisher/GUI-wrapper | **26 tests passed**; includes fake-executable checks for missing markers, process failures and continuation diagnostics |
+| Shell / metadata | Three system-Bash runner scenarios passed, shell syntax and plist lint passed |
+| Native UI harness | **Full gate passed**: presenter cancellation, indentation, five synthetic composition contracts, native history, settings, hover, caret/viewport and blocked-hover-deadline retry |
+| Real WebKit/native bridge | **Full gate passed**: original-byte no-write, edited saves, unsaved mode switches, external conflict, explicit reload, source fallback, closed-content clearing, invalid snapshot errors/retry, inactive termination, double Restore and timeout/retry |
+| Launch safety | Pure parser tests plus the built executable reject missing smoke/benchmark arguments and unknown engines with exit 64 before normal startup |
+| Build / signature | Fresh normal release at build/audit/Scribbit.app; deep strict signature passed; no compiler warnings in final release log |
+| Coverage | Debug/unit-only core line coverage 457/458, **99.78%**; total report **20.96%**, including low-coverage UI and compiled acceptance harnesses. Release GUI runs are deliberately not folded into this number |
+| Privacy / delivery | Fixture-only testing, RAM settings for native shell, no user-note/settings/login inspection, no system clipboard, no external logging, no commit/push or replacement of the normal running app |
+| Remaining acceptance | Physical IME, VoiceOver, actual OS crash delivery, cross-app clipboard, login cycle, multi-OS/architecture and whole-app resource measurements remain unverified |
+
+The rich harness opens one real WKWebView panel but injects synthetic clipboard
+events and directly exercises the termination delegate; it does not kill a shared
+WebKit process. Native screenshots contain harness views, not desktop captures.
+Neither passing UI gate is a substitute for physical-notch/manual acceptance.
+
+Ignored evidence: build/audit-before-fixes.log, build/audit-swift-tests.log,
+build/audit-web-tests.log, build/audit-ci-tests.log, build/audit-coverage.txt,
+build/audit-build.log, build/audit-native-smoke/run.log,
+build/audit-rich-before-restore-fix/run.log and build/audit-rich-smoke/run.log.
+The short idle sample printed by the native harness includes test allocations
+and is not a whole-app benchmark.
+
 ## Review fixes — November 18, 2026
 
 | Check | Result / scope |

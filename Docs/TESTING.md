@@ -26,7 +26,8 @@ Scripts/gui-smoke.sh native "$PWD/build/smoke"
 The GUI wrapper requires indentation, five composition contracts, native
 composition history through the real Edit menu actions, Save/Close composition
 persistence, and existing shell/controls/notch gates. It rejects runtime exceptions
-and nonzero process status. Only the native editor argument is accepted.
+and nonzero process status. Use `native` for this gate and `rich` for the separate
+WebKit gate below; their required pass markers are not interchangeable.
 See `NATIVE-EDITOR.md` for the event-boundary correction and scope.
 
 The wrapper also requires `PRESENTER_LIFECYCLE_SMOKE_PASS`. The presenter
@@ -275,6 +276,37 @@ physical-disk, energy or whole-app memory benchmark.
 
 
 ## Milkdown rich editor and developer acceptance build
+
+### Actual WebKit/native bridge gate
+
+After building, with GUI execution approval:
+
+```sh
+APP_PATH="$PWD/build/Scribbit.app" Scripts/gui-smoke.sh rich "$PWD/build/smoke-rich"
+```
+
+This opens one disposable panel with the packaged WKWebView and real bridge,
+not JSDOM. It does not construct the normal AppDelegate, read settings/bookmarks,
+register login, use the system clipboard or inspect user notes. Tests use a
+uniquely named project-local file, removed on completion. The harness has a
+60-second overall deadline. The wrapper rejects process failures, missing markers
+and Swift continuation-leak diagnostics even when other pass markers appear.
+
+It covers unchanged byte preservation, edited save, unsaved Rich/Source mode
+switching, coordinated conflict retention, explicit reload, closed-document
+cleanup, Source fallback, invalid snapshot errors/retry, inactive WebKit
+termination, double Restore and restore acknowledgement timeout/retry.
+Termination callbacks are deliberately simulated while page recreation and
+restoration use real WebKit. This is not actual OS crash delivery, physical
+IME, accessibility or cross-app clipboard acceptance.
+
+Malformed app-owned smoke/benchmark CLI arguments exit 64 before constructing
+NSApplication; they never launch the normal app. Explicit harness arguments also
+take precedence over a candidate bundle marker. `LaunchModeTests` exercises this
+without launching a GUI. Python smoke-wrapper tests use a fake executable, not
+an application, and protect the runner's success/failure reporting.
+
+### Headless and native authority suites
 
 Normal launch explicitly enables Milkdown with persistent app settings. Existing
 native GUI smoke/benchmark constructors remain native-only; their coverage must

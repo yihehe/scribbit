@@ -13,9 +13,12 @@ public final class NoteSession {
     public init(store: NoteStore = DiskNoteStore()) { self.store = store }
 
     /// Call only after the old session has successfully closed.
-    public func open(_ url: URL) throws {
+    /// expectedBytes is used only when adopting a newly created draft file.
+    /// Validate raw bytes before decoding (UTF-8 decoding consumes an initial BOM).
+    public func open(_ url: URL, expectedBytes: Data? = nil) throws {
         guard !isOpen else { return }
         let bytes = try store.read(url)
+        if let expectedBytes, bytes != expectedBytes { throw NoteError.conflict }
         guard let decoded = String(data: bytes, encoding: .utf8) else { throw NoteError.invalidUTF8 }
         self.url = url
         baseline = bytes
@@ -44,6 +47,13 @@ public final class NoteSession {
         // original byte baseline for conflicts and preserve its BOM on edits.
         let bom = Data([0xEF, 0xBB, 0xBF])
         if baseline.starts(with: bom), !bytes.starts(with: bom) { bytes = bom + bytes }
+        // A newly adopted BOM draft may retain the marker in its UI string,
+        // while Foundation decoded the session baseline without it. Equal
+        // serialized bytes are a clean no-op, not an atomic rewrite.
+        if bytes == baseline {
+            decodedBaseline = text
+            return
+        }
         try store.save(bytes, to: url, replacing: baseline)
         baseline = bytes
         decodedBaseline = text

@@ -20,6 +20,27 @@ private final class TestStore: NoteStore {
 
 final class NoteModelTests {
     private let url = URL(fileURLWithPath: "/example/note.md")
+    @Test @MainActor func saveUntitledAcceptsItsOwnBOMButRejectsDifferentRawBytes() async throws {
+        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent(".build/model-fixtures/\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = NoteModel()
+        model.openUntitled()
+        model.text = "\u{FEFF}draft"
+        let own = directory.appendingPathComponent("own.md")
+        #expect(await model.saveUntitled(to: own))
+        #expect(try Data(contentsOf: own) == Data("\u{FEFF}draft".utf8))
+
+        // Simulate replacement during read-back: same decoded string, new BOM.
+        let store = TestStore()
+        store.bytes = Data("\u{FEFF}draft".utf8)
+        let raced = NoteModel(session: NoteSession(store: store))
+        raced.openUntitled()
+        raced.text = "draft"
+        #expect(await !raced.saveUntitled(to: directory.appendingPathComponent("raced.md")))
+        #expect(raced.isUntitled && raced.isDirty && raced.text == "draft")
+    }
     @Test @MainActor func untitledDraftSurvivesDismissalAndRetainsPosition() async {
         let store = TestStore()
         let model = NoteModel(session: NoteSession(store: store))

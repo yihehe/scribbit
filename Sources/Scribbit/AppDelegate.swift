@@ -302,7 +302,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 heldByUI: presentingDialog || trackingMenu || settingsPresented, busy: model.isBusy || closing,
                 dragging: NSEvent.pressedMouseButtons != 0) else { return }
         let work = DispatchWorkItem { [weak self] in
-            guard let self, NotchInteraction.closesOnExit(openedByHover: self.openedByHover,
+            guard let self else { return }
+            // A fired deadline is no longer pending, even if pin/drag/busy
+            // prevents closing. Otherwise later movement outside cannot retry.
+            self.exitWork = nil
+            guard NotchInteraction.closesOnExit(openedByHover: self.openedByHover,
                 pinned: self.model.pinned, inside: self.retainsHover(at: self.pointerLocation),
                 heldByUI: self.presentingDialog || self.trackingMenu || self.settingsPresented,
                 busy: self.model.isBusy || self.closing,
@@ -1162,13 +1166,18 @@ extension AppDelegate {
         testPointer = inside; pointerMoved()
         try await Task.sleep(nanoseconds: 220_000_000)
         try check(panel.isVisible && model.isOpen, "Reentry failed to cancel delayed dismissal")
-        model.pinned = true
+        // Pin AFTER scheduling: the fired callback must release its slot even
+        // though the new pin state blocks closing at that deadline.
         testPointer = outside; pointerMoved()
+        try check(exitWork != nil, "Exit fixture did not schedule a deadline")
+        model.pinned = true
         try await Task.sleep(nanoseconds: 240_000_000)
-        try check(panel.isVisible && model.isOpen, "Pinned surface collapsed on exit")
+        try check(panel.isVisible && model.isOpen && exitWork == nil,
+                  "Blocked exit deadline either closed or retained a stale pending timer")
         model.pinned = false; pointerMoved()
         try await waitForSmoke { !self.model.isOpen && !self.closing }
         try check(try String(contentsOf: file, encoding: .utf8) == "Hover exit saved this", "Hover dismissal lost edits")
+        print("HOVER_DEADLINE_RETRY_SMOKE_PASS: blocked deadline clears, unpin/outside movement retries")
 
         testPointer = inside; pointerMoved()
         try await waitForSmoke { self.presenter.phase == .expanded && self.model.isOpen }

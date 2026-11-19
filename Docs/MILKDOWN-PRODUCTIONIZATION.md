@@ -53,6 +53,9 @@ This phase must not be described as complete just because prototype images work.
 - Resource integrity: pinned lock, complete notices, deterministic build, native
   source/bundle/notice hash tests without npm/network required in Swift CI.
 - Build signed normal and distinct RAM-only developer apps without launching or screenshots.
+- The opt-in native and rich GUI harnesses now have passing disposable-fixture
+  evidence in Docs/VALIDATION.md. The rich harness uses actual WKWebView and native
+  snapshots but synthetic paste/process-termination callbacks.
 - Remaining release acceptance: separately authorized WebKit/IME/VoiceOver/keyboard/
   sheet/hover/reset/conflict/crash tests on disposable notes and whole-app+WebKit
   startup/open/hidden/idle CPU/RSS comparison against native. JavaScript bundle

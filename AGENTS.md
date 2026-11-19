@@ -1,5 +1,16 @@
 # Scribbit — contributor and agent guide
 
+## Audit and regression foundations
+
+Read `Docs/CODEBASE-AUDIT.md` for the reviewed boundaries, fixed bugs and prioritized
+risks. New-file adoption compares raw expected bytes before decoding. Fired hover
+deadlines relinquish their pending slot even when blocked. Rich restore is
+single-flight through acknowledgement/timeout; inactive WebKit termination must
+not dirty a Source/hidden note. App-owned test flags fail closed before startup.
+Use `Scripts/gui-smoke.sh rich OUTPUT` for actual WebKit/native bridge evidence;
+the native harness and headless JS suite alone do not establish that boundary.
+Both GUI harnesses require authorization and disposable project-local fixtures.
+
 ## Milkdown editing integration
 
 Read `Docs/MILKDOWN-EDITOR.md` and `Docs/MILKDOWN-PRODUCTIONIZATION.md`.

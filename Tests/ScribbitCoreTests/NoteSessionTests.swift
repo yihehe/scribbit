@@ -24,6 +24,23 @@ private final class MemoryStore: NoteStore {
 
 final class NoteSessionTests {
     private let url = URL(fileURLWithPath: "/example/note.md")
+    @Test func newFileAdoptionRequiresExactBytesBeforeChangingSession() throws {
+        let store = MemoryStore()
+        store.bytes = Data("\u{FEFF}draft".utf8)
+        let session = NoteSession(store: store)
+        #expect(throws: NoteError.conflict) {
+            try session.open(url, expectedBytes: Data("draft".utf8))
+        }
+        #expect(!session.isOpen && session.url == nil && session.text.isEmpty)
+        #expect(store.writes == 0)
+        try session.open(url, expectedBytes: store.bytes)
+        #expect(session.isOpen && !session.isDirty)
+        session.text = "\u{FEFF}draft"
+        try session.save()
+        #expect(store.writes == 0 && !session.isDirty)
+        try session.close()
+        #expect(store.writes == 0)
+    }
     @Test func utf8BOMCleanClosePreservesOriginalBytesAndEditsKeepEncodingMarker() throws {
         let store = MemoryStore()
         let original = Data("\u{FEFF}Original\r\n".utf8)
