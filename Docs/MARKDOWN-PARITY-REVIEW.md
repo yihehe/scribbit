@@ -1,5 +1,9 @@
 # Whitespace fix review and proposed parity gates
 
+The follow-up implementation is documented in
+[MARKDOWN-PARITY.md](MARKDOWN-PARITY.md). The findings and numbers below are the
+historical review baseline, not the current test results.
+
 Review date: November 18, 2026. Compared the committed editor at fd72c8e with
 the local text-handler override on stephen.he/list-whitespace.
 

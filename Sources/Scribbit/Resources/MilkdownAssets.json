@@ -1,13 +1,14 @@
 {
   "version": 1,
   "sha256": {
-    "WebEditor/Milkdown/editor.js": "935653a3f992b09d14b69561f15904670e8c30cd899f64d5e0d50243d53d953a",
+    "WebEditor/Milkdown/editor.js": "e08648f46e8f4af4177a469d38218df3179b43b19c9e89414c5d53d782b94104",
+    "WebEditor/Milkdown/markdown-whitespace.js": "f33d8d6caf35fb24a4e2fcb0fffdcab56dce922fdb3da1efacd21903bc2fa151",
     "WebEditor/Milkdown/style.css": "bb5c30a12884245e2f393048e4e72ddd4e49387cce066f4e540e5491bb3a704a",
     "WebEditor/Milkdown/package.json": "1788bc1722cb8b31e0dbb37fa7ad3b3f8a4efcfbe62e01262ec9208a5682c746",
     "WebEditor/Milkdown/package-lock.json": "4bcda8169bc89765125d94eccb4a2dabe3759ea7200547687a909e2a6c8cc93a",
-    "WebEditor/Milkdown/build.mjs": "4f7058ceca8885a666ee0c42efbed682800e2353363cf0aa261c02b44fddd0a1",
+    "WebEditor/Milkdown/build.mjs": "06c8841b4f48efdc4d8f0001640bc94f5d4d65de2d488e03e7f5d51fec458d91",
     "Sources/Scribbit/Resources/MilkdownIndex.html": "52929645314e4b61d75dc30002d8c3380d652ce72ca0b5e13ddb23fc658af88f",
-    "Sources/Scribbit/Resources/MilkdownEditor.js": "920db2e99ece88f16804ffb9c986b92e743437f24db64225485b946f04c68610",
+    "Sources/Scribbit/Resources/MilkdownEditor.js": "d773e0822fdb181b0340b6655b89a5ce9ed38bebd63fcebd338d3b9a5ad5429e",
     "Sources/Scribbit/Resources/MilkdownStyle.css": "34a20e84bae64adea49e48eeb605d30038fe3840aee1cb15f9144642b56c0279",
     "Sources/Scribbit/Resources/MilkdownNotices.txt": "755ca72c7064b68528f1adf2a4997e8555ad2edca4b73148b521642839240120"
   }

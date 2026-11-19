@@ -20,19 +20,20 @@ unrelated or stale responses remain ignored.
 
 ## Library configuration versus Scribbit customization
 
-The public remarkStringifyOptionsCtx also overrides only the text handler:
-state.safe encodes vulnerable boundary spaces rather than using pinned
-Milkdown's literal-whitespace shortcut. A trailing space or space-only list item
-may appear as `&#x20;` in Source and decodes to the same ASCII space on reopen.
-Code and inline-code handlers are untouched. The structural roundtrip guard
-remains strict, including a separately known whitespace-loss case before a soft
-linebreak; this is not permission to trim rich text or normalize missing spaces.
+Whitespace parity uses public text-node, remark and stringify extension points.
+A serialization-only whitespace leaf prevents the transformer from moving
+boundary whitespace outside marks; a soft-break transform preserves decoded
+spaces/tabs rather than consuming them. Numeric character references represent
+that whitespace in Markdown. Ordinary text still uses state.safe, code handlers
+remain upstream-owned, and the structural roundtrip guard is unchanged.
+See [MARKDOWN-PARITY.md](MARKDOWN-PARITY.md) for exact contracts and shared tests.
 
 | Behavior | Extension point | What Scribbit owns |
 | --- | --- | --- |
 | Floating drag/add widget disabled | Public Milkdown blockConfig.filterNodes | One target filter; upstream BlockEdit/slash commands remain enabled |
 | Rich clipboard | Public ProseMirror clipboardTextSerializer and handlePaste props | Readable plain-text fallback and accepting the upstream-parsed HTML slice under existing guards; upstream still serializes HTML and parses schema content |
 | List-marker cursors | App stylesheet scoped to the live ProseMirror contenteditable attribute | Text cursor for bullet/number markers, pointer for editable tasks, not-allowed while locked |
+| Whitespace parity | Public text-node/remark/stringify extensions | A bounded serialization-only reference leaf and whitespace-preserving soft-break transform; no new editor/bridge node or file format |
 
 The cursor rule compensates for pinned Crepe list node views retaining a
 readonly label class after the editor unlocks. Their readonly ref is refreshed
@@ -167,12 +168,11 @@ does not reset this bullet sibling's marker. The comparison projection fixes the
 false refusal without mutating editor transactions or vendor code. The upstream
 visual marker can remain stale until reopen; this is not a visual-label fix.
 
-Failed export now includes a bounded, content-free mismatch category and schema
-path; it never echoes text, links or attribute values. A real different case stays
-blocked: Tab before a soft line break can insert trailing spaces that upstream
-serialization trims. The draft remains editable and unchanged, with a specific
-remove-trailing-indentation or Undo hint. Source switching uses the same safe
-snapshot and does not bypass genuine loss; explicit discard remains recovery-only.
+Failed export includes a bounded, content-free mismatch category and schema path;
+it never echoes text, links or attribute values. The earlier Tab-before-soft-break
+loss case is now a must-save regression with exact whitespace/break expectations,
+not an allowed comparison normalization. Source switching still uses the same
+safe snapshot and cannot bypass genuine loss; explicit discard remains recovery-only.
 
 Upstream represents additional intentional empty paragraphs using its existing
 `<br />` Markdown placeholder. The editor permits that exact safe placeholder

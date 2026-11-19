@@ -24,6 +24,9 @@ build uses RAM preferences/no login solely for safe manual acceptance.
 The integration reuses editor-neutral app lifecycle boundaries and actual
 Milkdown JSON node names, public ProseMirror transaction/update hooks and history
 commands. No vendor fork or lexical blanket rejection replaces semantic checks.
+The whitespace parity follow-up adds public text-node/remark/stringify extensions
+and explicit must-save fixtures; see MARKDOWN-PARITY.md. Strict source/document
+authority remains unchanged.
 
 ## Stage 2: authorized images, not implicit sibling access
 

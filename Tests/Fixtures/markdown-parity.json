@@ -1,0 +1,27 @@
+{
+  "contexts": [
+    {"id":"bullet","source":"- first\n- second\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[]}],"native":true},
+    {"id":"ordered","source":"3. first\n4. second\n","ancestry":["doc","ordered_list","list_item","paragraph"],"runs":[{"text":"first","marks":[]}],"native":false},
+    {"id":"task","source":"- [ ] first\n- [x] second\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[]}],"native":false},
+    {"id":"nested","source":"- outer\n  - first\n  - second\n","ancestry":["doc","bullet_list","list_item","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[]}],"native":false},
+    {"id":"paragraph","source":"first\n","ancestry":["doc","paragraph"],"runs":[{"text":"first","marks":[]}],"native":false},
+    {"id":"heading","source":"# first\n","ancestry":["doc","heading"],"runs":[{"text":"first","marks":[]}],"native":false},
+    {"id":"quote","source":"> first\n","ancestry":["doc","blockquote","paragraph"],"runs":[{"text":"first","marks":[]}],"native":false},
+    {"id":"strong","source":"- **first**\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[{"type":"strong"}]}],"native":true},
+    {"id":"emphasis","source":"- *first*\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[{"type":"emphasis"}]}],"native":false},
+    {"id":"strike","source":"- ~~first~~\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[{"type":"strike_through"}]}],"native":false},
+    {"id":"link","source":"- [first](https://example.invalid \"fixture\")\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[{"type":"link","href":"https://example.invalid","title":"fixture"}]}],"native":true},
+    {"id":"nested-marks","source":"- ***first***\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[{"type":"emphasis"},{"type":"strong"}]}],"native":true},
+    {"id":"table","source":"| A | B |\n| - | - |\n| first | cell |\n","ancestry":["doc","table","table_row","table_cell","paragraph"],"runs":[{"text":"first","marks":[]}],"native":true},
+    {"id":"inline-code","source":"- `first`\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[{"type":"inlineCode"}]}],"boundaryMarks":[],"native":false},
+    {"id":"code-block","source":"```text\nfirst\n```\n","ancestry":["doc","code_block"],"runs":[{"text":"first","marks":[]}],"native":false},
+    {"id":"soft-break","source":"- first\n  continued\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[]},{"break":"soft"},{"text":"continued","marks":[]}],"native":true},
+    {"id":"hard-break","source":"- first\\\n  continued\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[]},{"break":"hard"},{"text":"continued","marks":[]}],"native":false},
+    {"id":"marked-soft-break","source":"- **first\n  continued**\n","ancestry":["doc","bullet_list","list_item","paragraph"],"runs":[{"text":"first","marks":[{"type":"strong"}]},{"break":"soft","marks":[{"type":"strong"}]},{"text":"continued","marks":[{"type":"strong"}]}],"native":false},
+    {"id":"marked-table","source":"| A | B |\n| - | - |\n| **first** | cell |\n","ancestry":["doc","table","table_row","table_cell","paragraph"],"runs":[{"text":"first","marks":[{"type":"strong"}]}],"native":false}
+  ],
+  "offsets": [0, 2, 5],
+  "insertions": [" ", "  ", "\t", "\u00a0", " 🐸"],
+  "nativeOffsets": [0, 5],
+  "nativeInsertion": " "
+}

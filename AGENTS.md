@@ -1,5 +1,17 @@
 # Scribbit — contributor and agent guide
 
+## Markdown parity gate
+
+Read `Docs/MARKDOWN-PARITY.md`. Supported edits must save/reopen; draft retention
+alone is only a safety result. Add explicit expectations to the shared
+Tests/Fixtures/markdown-parity.json corpus and do not reuse the production
+normalizer as the only oracle. The rich GUI harness now takes critical cases
+through actual coordinated save/close/disk reopen and an independent DOM oracle.
+The serializer-only whitespace leaf and soft-break extension use public hooks:
+never expose the leaf as a document node, emit arbitrary HTML, move/trim user
+spaces, or weaken exact export comparison. Keep code serializers upstream-owned.
+The new adapter source must remain in the generated asset hash manifest.
+
 ## Audit and regression foundations
 
 Read `Docs/CODEBASE-AUDIT.md` for the reviewed boundaries, fixed bugs and prioritized
@@ -21,10 +33,11 @@ List-marker cursors follow the editor root's current contenteditable attribute,
 not Crepe's potentially stale readonly marker class. Keep task pointers and
 genuine locked-state cursors; do not recreate node views or change permissions
 just to update cursor styling. The rich GUI gate checks computed cursor styles.
-The public Markdown text-handler override uses state.safe instead of the pinned
-literal-whitespace shortcut so trailing/space-only items encode losslessly.
-Keep exact export comparison and code handlers; never fix whitespace save errors
-by trimming draft text or broadly accepting missing characters.
+Ordinary Markdown text uses state.safe rather than the pinned literal-whitespace
+shortcut. The dedicated whitespace adapter also protects boundary whitespace
+through mark serialization and soft-break parsing. Keep exact export comparison
+and code handlers; never fix save errors by trimming draft text or broadly
+accepting missing characters.
 
 Read `Docs/MILKDOWN-EDITOR.md` and `Docs/MILKDOWN-PRODUCTIONIZATION.md`.
 Normal launch uses Milkdown for supported Markdown and untitled notes, with the

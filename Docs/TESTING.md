@@ -306,6 +306,22 @@ take precedence over a candidate bundle marker. `LaunchModeTests` exercises this
 without launching a GUI. Python smoke-wrapper tests use a fake executable, not
 an application, and protect the runner's success/failure reporting.
 
+### Supported editing parity gate
+
+See [MARKDOWN-PARITY.md](MARKDOWN-PARITY.md). The shared JSON corpus under
+Tests/Fixtures defines 285 supported edits; each must export and reopen, and a
+refusal fails npm test. The independent block oracle does not invoke the
+production normalizer. Named loss-guard tests and the exploratory seeded safety
+test remain separate from editability acceptance.
+
+The rich GUI gate takes 12 critical shared cases through actual WKWebView,
+native snapshot, coordinated file save, close, editor release and disk reopen.
+Its separate DOM oracle checks exact text, marks/link destination/title and break
+kind. Synthetic DOM mutations are acknowledged through the real native dirty
+notification before capture. The harness runs from the repository root to read
+the fixture file and uses only UUID-named disposable files.
+It does not claim physical typing/IME or system clipboard delivery.
+
 ### Headless and native authority suites
 
 Normal launch explicitly enables Milkdown with persistent app settings. Existing

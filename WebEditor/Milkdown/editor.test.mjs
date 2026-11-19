@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { JSDOM } from "jsdom";
+import { fixtures, observableBlocks, expectedEdit } from "./parity-fixtures.mjs";
+import { encodeWhitespace } from "./markdown-whitespace.js";
 await mkdir("../../build", { recursive: true });
 const script = await readFile(
   "../../Sources/Scribbit/Resources/MilkdownEditor.js",
@@ -128,6 +130,11 @@ function selectText(f, text, offset = 0) {
     ),
   );
 }
+test("serialization-only whitespace encoder cannot emit arbitrary markup", () => {
+  assert.equal(encodeWhitespace({value: " \t\u00a0"}), "&#x20;&#x9;&#xa0;");
+  for (const value of ["", "\n", "\r", "x", " <script>", "&#x20;", undefined])
+    assert.throws(() => encodeWhitespace({value}), /Invalid whitespace/);
+});
 test("empty notes and empty paragraphs have no placeholder prompt", async () => {
   for (const source of ["", "An existing paragraph\n"]) {
     const f = await setup(source);
@@ -1427,7 +1434,71 @@ test("safe text encoding leaves code handlers, internal spaces and Undo authorit
   }
 });
 
-test("real trailing-indent loss stays blocked with content-free diagnostics and Undo recovery", async () => {
+test("supported editing must export and reopen with independent observable expectations", async () => {
+  let completed = 0;
+  for (const fixture of fixtures.contexts)
+    for (const offset of fixtures.offsets)
+      for (const insertion of fixtures.insertions) {
+        const f = await setup(fixture.source);
+        const label = `${fixture.id} offset=${offset} insertion=${JSON.stringify(insertion)}`;
+        try {
+          assert.equal(f.loaded.accepted, true, label);
+          const expected = expectedEdit(f.api.view().state.doc, fixture, offset, insertion);
+          selectText(f, "first", offset);
+          type(f, insertion);
+          assert.deepEqual(observableBlocks(f.api.view().state.doc), expected, `edit: ${label}`);
+          const result = flush(f);
+          assert.equal(result.type, "snapshot", `${label}: ${JSON.stringify(result)}`);
+          f.win.scribbit.unlock();
+          f.win.scribbit.load({generation: "parity-reopen", source: result.source, readOnly: false});
+          assert.equal(f.messages.findLast((m) => m.type === "loaded").accepted, true, label);
+          assert.deepEqual(observableBlocks(f.api.view().state.doc), expected, `reopen: ${label}`);
+          completed++;
+        } finally { f.close(); }
+      }
+  assert.equal(completed, fixtures.contexts.length * fixtures.offsets.length * fixtures.insertions.length);
+  await writeFile("../../build/milkdown-supported-parity.json",
+    JSON.stringify({ contexts: fixtures.contexts.length, edits: completed, refused: 0 }, null, 2) + "\n");
+});
+
+test("whitespace-only formatting and literal entity-like text remain exact", async () => {
+  for (const id of ["strong", "emphasis", "strike", "link", "nested-marks", "marked-table"]) {
+    const fixture = fixtures.contexts.find((entry) => entry.id === id);
+    const f = await setup(fixture.source);
+    try {
+      const v = f.api.view();
+      const expected = observableBlocks(v.state.doc);
+      const index = expected.findIndex((block) => block.runs[0]?.text === "first");
+      expected[index].runs = [{ text: " ", marks: structuredClone(fixture.runs[0].marks) }];
+      selectText(f, "first");
+      const from = v.state.selection.from;
+      v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc, from, from + 5)));
+      type(f, " ");
+      assert.deepEqual(observableBlocks(v.state.doc), expected, id);
+      const result = flush(f);
+      assert.equal(result.type, "snapshot", `${id}: ${JSON.stringify(result)}`);
+      f.win.scribbit.load({generation: "only-space", source: result.source, readOnly: false});
+      assert.equal(f.messages.findLast((m) => m.type === "loaded").accepted, true, id);
+      assert.deepEqual(observableBlocks(f.api.view().state.doc), expected, id);
+    } finally { f.close(); }
+  }
+  const f = await setup("first\n");
+  try {
+    const fixture = fixtures.contexts.find((entry) => entry.id === "paragraph");
+    const literal = " &#x20; <script> \u00a0 ";
+    const expected = expectedEdit(f.api.view().state.doc, fixture, 2, literal);
+    selectText(f, "first", 2);
+    type(f, literal);
+    const result = flush(f);
+    assert.equal(result.type, "snapshot", JSON.stringify(result));
+    f.win.scribbit.load({generation: "literal-text", source: result.source, readOnly: false});
+    assert.equal(f.messages.findLast((m) => m.type === "loaded").accepted, true);
+    assert.deepEqual(observableBlocks(f.api.view().state.doc), expected);
+    assert.equal(f.api.view().dom.querySelector("script"), null);
+  } finally { f.close(); }
+});
+
+test("list indentation before a soft break preserves exact whitespace and break kind", async () => {
   const fixture = "PRIVATE_TEST_FIXTURE";
   const ordinary = await setup(`- ${fixture}\n- next\n`);
   try {
@@ -1449,15 +1520,14 @@ test("real trailing-indent loss stays blocked with content-free diagnostics and 
     assert.equal(pressKey(f, "Tab"), true);
     const before = f.api.documentJSON();
     const result = flush(f, "trailing-indent");
-    assert.equal(result.type, "flushError");
-    assert.match(result.message, /trailing-whitespace at \$\.content\[0\]/);
-    assert.match(
-      result.message,
-      /Remove the trailing spaces\/indentation or Undo/,
-    );
-    assert.equal(result.message.includes(fixture), false);
+    assert.equal(result.type, "snapshot", JSON.stringify(result));
+    const paragraph = f.api.parse(result.source).firstChild.firstChild.firstChild;
+    assert.equal(paragraph.firstChild.text, fixture + "    ");
+    assert.equal(paragraph.child(1).type.name, "hardbreak");
+    assert.equal(paragraph.child(1).attrs.isInline, true);
+    assert.equal(paragraph.child(2).text, "next");
     assert.deepEqual(f.api.documentJSON(), before);
-    assert.equal(f.api.view().editable, true);
+    f.win.scribbit.unlock();
     f.win.scribbit.undo();
     assert.equal(flush(f, "undo-indent").type, "snapshot");
   } finally {
@@ -1465,7 +1535,7 @@ test("real trailing-indent loss stays blocked with content-free diagnostics and 
   }
 });
 
-test("seeded short public-key list edits either reopen safely or retain the guarded draft", async () => {
+test("exploratory safety only: seeded edits either reopen safely or retain a guarded draft", async () => {
   const outcomes = { snapshots: 0, retained: 0, handledKeys: 0 };
   for (const source of [
     "- one\n- two\n",
@@ -1536,7 +1606,7 @@ test("seeded short public-key list edits either reopen safely or retain the guar
       }
     }
   assert.ok(
-    outcomes.snapshots > 0 && outcomes.retained > 0 && outcomes.handledKeys > 0,
+    outcomes.snapshots > 0 && outcomes.handledKeys > 0,
   );
   await writeFile(
     "../../build/milkdown-seeded-list-outcomes.json",

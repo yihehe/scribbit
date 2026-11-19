@@ -69,6 +69,7 @@ await writeFile(
 
 const inputs = [
   "WebEditor/Milkdown/editor.js",
+  "WebEditor/Milkdown/markdown-whitespace.js",
   "WebEditor/Milkdown/style.css",
   "WebEditor/Milkdown/package.json",
   "WebEditor/Milkdown/package-lock.json",

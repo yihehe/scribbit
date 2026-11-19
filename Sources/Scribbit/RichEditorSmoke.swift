@@ -29,12 +29,12 @@ final class RichEditorSmoke: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func require(_ condition: Bool, _ message: String) throws {
+    func require(_ condition: Bool, _ message: String) throws {
         if !condition { throw NSError(domain: "RichEditorSmoke", code: 1,
             userInfo: [NSLocalizedDescriptionKey: message]) }
     }
 
-    private func js(_ editor: RichMarkdownEditor, _ script: String,
+    func js(_ editor: RichMarkdownEditor, _ script: String,
                     arguments: [String: Any] = [:]) async throws -> Any? {
         try await withCheckedThrowingContinuation { continuation in
             editor.web.callAsyncJavaScript(script, arguments: arguments, in: nil, in: .page) {
@@ -60,7 +60,7 @@ final class RichEditorSmoke: NSObject, NSApplicationDelegate {
             """, arguments: ["text": text])
     }
 
-    private func waitUntil(_ message: String, _ condition: () -> Bool) async throws {
+    func waitUntil(_ message: String, _ condition: () -> Bool) async throws {
         let deadline = ProcessInfo.processInfo.systemUptime + 8
         while !condition() {
             try require(ProcessInfo.processInfo.systemUptime < deadline, message)
@@ -239,7 +239,9 @@ final class RichEditorSmoke: NSObject, NSApplicationDelegate {
         try require(editor.active, "List cursor fixture import failed")
         func markerCursors() async throws -> [String] {
             try await js(editor, """
-                await new Promise(resolve => requestAnimationFrame(resolve));
+                // Background WebKit panels may suspend animation frames.
+                // A task turn settles Vue; getComputedStyle flushes styles.
+                await new Promise(resolve => setTimeout(resolve, 0));
                 const root = document.querySelector(".ProseMirror");
                 return ["bullet", "ordered", "unchecked", "checked"].map(kind => {
                   const marker = root.querySelector(".label." + kind);
@@ -294,5 +296,6 @@ final class RichEditorSmoke: NSObject, NSApplicationDelegate {
             """) as? String
         try require(content == "  ", "List-item spaces were trimmed on reopen")
         print("RICH_LIST_SPACE_PASS")
+        try await verifyMarkdownParity(editor: editor)
     }
 }
