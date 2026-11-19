@@ -1,5 +1,28 @@
 # Validation record
 
+## List-marker cursor state — November 18, 2026
+
+Pinned Crepe list node views may retain a readonly label class after loading
+unlocks the editor. Scoped app CSS derives marker cursors from ProseMirror's live
+root contenteditable attribute instead, preserving actual lock state and task
+interaction. No vendor edits, JS mutations, node-view replacement or polling.
+
+| Check | Result / scope |
+| --- | --- |
+| Before fix | Real-WebKit regression failed: editable list markers retained disabled cursors |
+| After fix | Rich GUI gate passed with computed-style assertions for bullets, numbers, checked/unchecked tasks, read-only lock, unlock and save settlement |
+| Behavior | Read-only task click leaves source unchanged; editable task click toggles checked state and exports valid Markdown |
+| Bundled JS | 41 tests passed; only CSS and its generated manifest changed in web resources |
+| Swift/core/resources | 166 tests in 27 suites passed with host file coordination |
+| Offline helpers | 26 tests passed, including required cursor pass-marker reporting |
+| Release | Fresh build/list-cursor/Scribbit.app passed deep strict signature verification |
+| Limits | Computed cursor style and synthetic pointer events, not physical mouse-hover acceptance. No normal app relaunch or user-note inspection |
+
+Ignored evidence: build/list-cursor-before-smoke/run.log,
+build/list-cursor-smoke/run.log, build/list-cursor-web-tests.log,
+build/list-cursor-swift-tests.log, build/list-cursor-ci-tests.log and
+build/list-cursor-build.log. Changes remain local and uncommitted.
+
 ## Rich clipboard formatting — November 18, 2026
 
 Rich copy keeps upstream HTML and replaces Milkdown's Markdown plain-text
