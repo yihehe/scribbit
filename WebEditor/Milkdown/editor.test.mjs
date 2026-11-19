@@ -135,6 +135,28 @@ test("serialization-only whitespace encoder cannot emit arbitrary markup", () =>
   for (const value of ["", "\n", "\r", "x", " <script>", "&#x20;", undefined])
     assert.throws(() => encodeWhitespace({value}), /Invalid whitespace/);
 });
+test("selection formatting toolbar is absent while formatting commands still work", async () => {
+  const f = await setup("Format me\n");
+  try {
+    const v = f.api.view();
+    v.focus();
+    selectText(f, "Format");
+    const from = v.state.selection.from;
+    v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc, from, from + 6)));
+    for (const command of ["ToggleStrong", "ToggleEmphasis"]) {
+      assert.equal(f.api.crepe.editor.action((ctx) => ctx.get("commands").call(command)), true, command);
+    }
+    assert.deepEqual(
+      Array.from(v.state.doc.firstChild.firstChild.marks, (mark) => mark.type.name).sort(),
+      ["emphasis", "strong"],
+    );
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(f.win.document.querySelector(".milkdown-toolbar"), null);
+    const result = flush(f);
+    assert.equal(result.type, "snapshot", JSON.stringify(result));
+    assert.match(result.source, /Format/);
+  } finally { f.close(); }
+});
 test("empty notes and empty paragraphs have no placeholder prompt", async () => {
   for (const source of ["", "An existing paragraph\n"]) {
     const f = await setup(source);
