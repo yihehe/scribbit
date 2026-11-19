@@ -1,5 +1,44 @@
 # Validation record
 
+## Markdown parity follow-up — November 19, 2026
+
+Baseline: main c87263c. Current contracts and implementation are in
+[MARKDOWN-PARITY.md](MARKDOWN-PARITY.md). The previous 72-case review's remaining
+22 guarded refusals now export successfully without weakening the canonical
+comparison or moving/trimming marked whitespace.
+
+| Check | Result / scope |
+| --- | --- |
+| Red/green must-save test | Running the new independent corpus against the committed baseline bundle failed on a leading space inside strong text; the same suite passes with the adapter |
+| Original review probe | 72/72 snapshots now succeed, compared with 50/72 after the targeted whitespace fix; synthetic fixture outcomes, not a real-user rate |
+| Editor JavaScript | **46 tests passed**: bundled integration including **285 explicit must-save edits across 19 contexts**, six whitespace-only marked cases, literal entity/HTML-looking text, exact soft/hard break and code handling, plus the pure whitespace-encoder rejection unit |
+| Independent oracle | Fixture-defined text/marks/breaks and semantic ancestor attrs, untouched blocks retained; no production comparison helper used for the supported corpus |
+| Native/WebKit persistence | Full rich gate passed, including **12 shared fixtures through actual coordinated save, close, editor release and disk reopen**, with independent DOM expectations |
+| Swift/core/resources | **166 tests in 27 suites passed** with host coordination; new adapter included in generated source hashes |
+| Offline helpers | **26 tests passed** including the mandatory native parity pass marker; three system-Bash wrapper scenarios passed |
+| Reproducibility | Repeated JS/CSS/notices/inventory/manifest generation was byte-identical |
+| Release | Fresh build/markdown-parity/Scribbit.app built without compiler warnings and passed deep strict signature verification |
+| Native Source GUI | Full gate passed on isolated rerun. An initial run failed the pre-existing settings/viewport checkpoint assertion while other suites were active; no production native code or assertion was changed to suppress it |
+| Scope / remaining acceptance | Fixture-only headless and browser automation. No physical keyboard/IME, VoiceOver, OS clipboard/crash delivery, multi-OS or whole-app performance claim |
+| Delivery / privacy | Local uncommitted branch stephen.he/markdown-parity; no normal app restart, user-note/settings/login inspection, commit, push or external activity logging |
+
+The first expanded rich run reached its overall deadline while awaiting an
+animation frame in the existing cursor fixture. Background WebKit can suspend
+frames. That test now takes one task turn and synchronously computes styles;
+the new DOM-edit test waits for native dirty acknowledgement, not a frame or a
+fixed editing delay. The following complete rich runs passed.
+
+The native viewport failure above is not established as a parity regression or
+as harmless. Its isolated rerun passed; retain the failure evidence and investigate
+if it recurs rather than silently retrying or weakening the check.
+
+Ignored evidence: build/parity-before-failure.log, build/parity-after-probe.json,
+build/parity-web-tests.log, build/milkdown-supported-parity.json,
+build/parity-swift-tests.log, build/parity-ci-tests.log,
+build/parity-build.log, build/parity-regeneration-hashes.json,
+build/parity-rich-smoke/run.log, build/parity-native-smoke/run.log and
+build/parity-native-retry/run.log.
+
 ## List boundary whitespace export — November 18, 2026
 
 Reproduced single trailing-space and space-only empty-item save refusal using

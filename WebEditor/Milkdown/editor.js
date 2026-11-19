@@ -11,8 +11,9 @@ import { Fragment, Slice } from "@milkdown/kit/prose/model";
 import { Plugin, EditorState, TextSelection } from "@milkdown/kit/prose/state";
 import { undo, redo, undoDepth, redoDepth } from "@milkdown/kit/prose/history";
 import { $prose } from "@milkdown/kit/utils";
-import { headingIdGenerator } from "@milkdown/kit/preset/commonmark";
+import { headingIdGenerator, textSchema, remarkLineBreak } from "@milkdown/kit/preset/commonmark";
 import { blockConfig } from "@milkdown/kit/plugin/block";
+import { encodeWhitespace, whitespaceText, preservingSoftBreaks } from "./markdown-whitespace.js";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/classic-dark.css";
 import "./style.css";
@@ -612,16 +613,19 @@ async function boot() {
       [Crepe.Feature.Placeholder]: false,
     },
   });
+  // Replace only two preset extension points; keep the rest of the editor,
+  // Markdown pipeline, and strict export comparison unchanged.
+  await crepe.editor.remove([textSchema, ...remarkLineBreak]);
+  crepe.editor.use([whitespaceText, ...preservingSoftBreaks]);
   crepe.editor.config((ctx) => {
-    // Pinned Milkdown's text fast path emits trailing/all-space text verbatim,
-    // which Markdown can trim or reinterpret as an empty item/hard break.
-    // Let the existing Markdown safety encoder preserve those boundary spaces
-    // with character references. Code/inline-code use their own handlers.
+    // Normal text retains upstream Markdown escaping. The serializer-only
+    // whitespace leaf emits bounded character references, never arbitrary HTML.
     ctx.update(remarkStringifyOptionsCtx, (options) => ({
       ...options,
       handlers: {
         ...options.handlers,
         text: (node, _parent, state, info) => state.safe(node.value, info),
+        scribbitWhitespace: encodeWhitespace,
       },
     }));
     // Crepe's BlockEdit also supplies slash commands, so keep that feature.
