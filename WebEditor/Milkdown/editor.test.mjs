@@ -1380,6 +1380,53 @@ test("actual public list commands, split/merge, indent/lift and checkbox UI rema
   }
 });
 
+test("list boundary spaces save and reopen exactly instead of being trimmed", async () => {
+  for (const source of [
+    "- first\n- second\n",
+    "3. first\n4. second\n",
+    "- [ ] first\n- [x] second\n",
+    "- outer\n  - first\n  - second\n",
+  ]) {
+    for (const count of [1, 2, 4]) {
+      for (const position of ["leading", "trailing", "empty-item"]) {
+        const f = await setup(source);
+        try {
+          assert.equal(f.loaded.accepted, true);
+          selectText(f, "first", position === "leading" ? 0 : 5);
+          if (position === "empty-item") assert.equal(enter(f), true);
+          type(f, " ".repeat(count));
+          const before = f.api.documentJSON();
+          const result = flush(f);
+          assert.equal(result.type, "snapshot", `${position} ${count}: ${JSON.stringify(result)}`);
+          assert.ok(result.source.includes("&#x20;"));
+          assert.equal(f.api.sameExportDocument(before, f.api.parse(result.source).toJSON()), true);
+          f.win.scribbit.unlock();
+          f.win.scribbit.load({ generation: "reopened", source: result.source, readOnly: false });
+          assert.equal(f.messages.findLast((m) => m.type === "loaded").accepted, true);
+          assert.equal(f.api.sameExportDocument(before, f.api.documentJSON()), true);
+        } finally { f.close(); }
+      }
+    }
+  }
+});
+
+test("safe text encoding leaves code handlers, internal spaces and Undo authority intact", async () => {
+  for (const source of ["- first\n", "- `first `\n", "```text\nfirst \n```\n", "first\n"]) {
+    const f = await setup(source);
+    try {
+      selectText(f, "first", 2);
+      type(f, " ");
+      const before = f.api.documentJSON();
+      const result = flush(f);
+      assert.equal(result.type, "snapshot", JSON.stringify(result));
+      assert.equal(f.api.sameExportDocument(before, f.api.parse(result.source).toJSON()), true);
+      f.win.scribbit.unlock();
+      f.win.scribbit.undo();
+      assert.equal(flush(f, "undo-boundary-space").source, undefined);
+    } finally { f.close(); }
+  }
+});
+
 test("real trailing-indent loss stays blocked with content-free diagnostics and Undo recovery", async () => {
   const fixture = "PRIVATE_TEST_FIXTURE";
   const ordinary = await setup(`- ${fixture}\n- next\n`);

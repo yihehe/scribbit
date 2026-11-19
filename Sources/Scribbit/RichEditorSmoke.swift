@@ -272,5 +272,27 @@ final class RichEditorSmoke: NSObject, NSApplicationDelegate {
         try require(try await markerCursors() == ["text", "text", "missing", "pointer"],
                     "Save settlement restored stale cursor styling")
         print("RICH_LIST_CURSOR_PASS")
+
+        await editor.prepare(source: "- &#x20;\n", url: fixture)
+        try require(editor.active, "Empty-list whitespace fixture import failed")
+        _ = try await js(editor, """
+            const root = document.querySelector(".ProseMirror");
+            root.focus();
+            const paste = new Event("paste", {bubbles: true, cancelable: true});
+            Object.defineProperty(paste, "clipboardData", {value: {
+              files: [], getData: kind => kind === "text/plain" ? " " : ""
+            }});
+            root.dispatchEvent(paste);
+            """)
+        let spaced = try await editor.capture()
+        try require(spaced?.contains("&#x20;") == true, "List-item space failed to export losslessly")
+        editor.finish(.saved, source: spaced ?? "")
+        await editor.prepare(source: spaced ?? "", url: fixture)
+        try require(editor.active, "Space-only list item failed to reopen")
+        let content = try await js(editor, """
+            return document.querySelector(".list-item .children p")?.textContent;
+            """) as? String
+        try require(content == "  ", "List-item spaces were trimmed on reopen")
+        print("RICH_LIST_SPACE_PASS")
     }
 }

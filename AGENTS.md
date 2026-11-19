@@ -21,6 +21,10 @@ List-marker cursors follow the editor root's current contenteditable attribute,
 not Crepe's potentially stale readonly marker class. Keep task pointers and
 genuine locked-state cursors; do not recreate node views or change permissions
 just to update cursor styling. The rich GUI gate checks computed cursor styles.
+The public Markdown text-handler override uses state.safe instead of the pinned
+literal-whitespace shortcut so trailing/space-only items encode losslessly.
+Keep exact export comparison and code handlers; never fix whitespace save errors
+by trimming draft text or broadly accepting missing characters.
 
 Read `Docs/MILKDOWN-EDITOR.md` and `Docs/MILKDOWN-PRODUCTIONIZATION.md`.
 Normal launch uses Milkdown for supported Markdown and untitled notes, with the
