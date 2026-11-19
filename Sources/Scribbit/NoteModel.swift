@@ -162,13 +162,9 @@ final class NoteModel: ObservableObject {
                 let data = Data(current.utf8)
                 guard data.count <= DiskNoteStore.maximumBytes else { throw NoteError.tooLarge }
                 try data.write(to: destination, options: .withoutOverwriting)
-                try session.open(destination)
                 // A non-cooperating writer may replace the newly created file.
-                // Never substitute those bytes for the draft the user just saved.
-                guard session.text.utf8.elementsEqual(current.utf8) else {
-                    try session.close() // Clean baseline: no write.
-                    throw NoteError.conflict
-                }
+                // Compare exact bytes before adoption, not BOM-normalized strings.
+                try session.open(destination, expectedBytes: data)
             }
             url = destination
             filename = destination.lastPathComponent

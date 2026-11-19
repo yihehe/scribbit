@@ -151,7 +151,7 @@ filesystem transaction engine. No journal is written in the background.
 
 ## Explicit non-goals
 
-Multiple notes/tabs, full Markdown semantics, WYSIWYG, cloud sync, automatic
+Multiple notes/tabs, full Markdown semantics, arbitrary rich-document fidelity, cloud sync, automatic
 merging, background autosave, a global keyboard shortcut, document history,
 App Store sandbox distribution, and Windows/Linux support are out of scope.
 
@@ -198,7 +198,9 @@ Open and normal quit accept pending native composition, then ask Save As / Cance
 Discard for a nonempty draft, including when it was hidden. Cancelling preserves
 it. Save As uses a native sheet, creates a new UTF-8 file without overwriting,
 checks the 64 MiB source bound, opens it through the serial worker and verifies
-its bytes still match the draft before adopting the file-backed session. Failure
+the raw bytes still match the draft before decoding or adopting the file-backed
+session. Comparing decoded strings here is insufficient because UTF-8 decoding
+consumes a leading BOM. Failure
 leaves the draft editable; if a file was created before a failed read-back, the
 error instructs the user to choose a new path. Subsequent file saves retain the
 original coordinated exact-byte conflict protection. The draft/file lifecycle

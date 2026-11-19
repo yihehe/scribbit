@@ -112,6 +112,7 @@ final class RichMarkdownEditor: NSObject, ObservableObject, WKScriptMessageHandl
     private var sourceUsesCRLF = false
     private var pageReady = false
     private var readyWaiter: CheckedContinuation<Void, Error>?
+    private var restoreRequest: UUID?
     private var loadWaiter: CheckedContinuation<Bool, Never>?
     private var flushWaiter: CheckedContinuation<String?, Error>?
     private var flushID: String?
@@ -272,6 +273,7 @@ final class RichMarkdownEditor: NSObject, ObservableObject, WKScriptMessageHandl
         loadWaiter?.resume(returning: false); loadWaiter = nil
         flushWaiter?.resume(throwing: cancellation); flushWaiter = nil
         flushID = nil
+        restoreRequest = nil
         generation = UUID().uuidString
         active = false; canUndo = false; canRedo = false
         needsRecovery = false
@@ -298,16 +300,25 @@ final class RichMarkdownEditor: NSObject, ObservableObject, WKScriptMessageHandl
         web?.callAsyncJavaScript("window.scribbit?.readOnly(value)", arguments: ["value": value], in: nil, in: .page, completionHandler: nil)
     }
     func restore() {
-        guard needsRecovery else { return }
+        guard needsRecovery, restoreRequest == nil else { return }
+        let request = UUID()
+        restoreRequest = request
         let recoveryGeneration = generation
         _ = createView()
         Task {
             do {
                 try await waitForPage()
-                guard needsRecovery, generation == recoveryGeneration else { return }
+                guard needsRecovery, generation == recoveryGeneration, restoreRequest == request else { return }
                 generation = UUID().uuidString
                 let restorationGeneration = generation
                 if let mirror {
+                    timer?.cancel()
+                    timer = Task { [weak self] in
+                        do { try await Task.sleep(nanoseconds: 5_000_000_000) } catch { return }
+                        guard let self, self.restoreRequest == request,
+                              self.generation == restorationGeneration else { return }
+                        self.abort(RichMarkdownPolicy.failure("Rich checkpoint restore timed out. Retry Restore or explicitly discard the draft."))
+                    }
                     web.callAsyncJavaScript("window.scribbit.restore(payload)", arguments: ["payload": [
                         "generation": generation, "document": mirror, "revision": mirrorRevision
                     ]], in: nil, in: .page) { [weak self] result in
@@ -315,15 +326,20 @@ final class RichMarkdownEditor: NSObject, ObservableObject, WKScriptMessageHandl
                         if case .failure(let error) = result { self.abort(error) }
                     }
                 } else {
+                    restoreRequest = nil
                     failed("No acknowledged rich checkpoint is available. Copy any recoverable text, or explicitly discard the rich draft to use the retained Markdown source.")
                 }
             } catch {
-                if generation == recoveryGeneration, needsRecovery { failed(error.localizedDescription) }
+                if generation == recoveryGeneration, needsRecovery, restoreRequest == request {
+                    restoreRequest = nil
+                    failed(error.localizedDescription)
+                }
             }
         }
     }
     private func abort(_ error: Error) {
         timer?.cancel(); timer = nil
+        restoreRequest = nil
         readyWaiter?.resume(throwing: error); readyWaiter = nil
         loadWaiter?.resume(returning: false); loadWaiter = nil
         flushWaiter?.resume(throwing: error); flushWaiter = nil
@@ -419,8 +435,10 @@ final class RichMarkdownEditor: NSObject, ObservableObject, WKScriptMessageHandl
         case "flushError":
             if body["id"] as? String == flushID { abort(RichMarkdownPolicy.failure(body["message"] as? String ?? "Unsafe Markdown conversion.")) }
         case "restored":
-            guard needsRecovery, let restoredRevision = body["revision"] as? Int,
+            guard needsRecovery, restoreRequest != nil, let restoredRevision = body["revision"] as? Int,
                   restoredRevision == mirrorRevision else { return }
+            timer?.cancel(); timer = nil
+            restoreRequest = nil
             revision = restoredRevision; canUndo = false; canRedo = false
             needsRecovery = false; changed(true)
             failed("Restored the last acknowledged rich checkpoint. The latest edits/preedit may be missing; review before saving.")
@@ -436,9 +454,17 @@ final class RichMarkdownEditor: NSObject, ObservableObject, WKScriptMessageHandl
         decisionHandler(allowed ? .allow : .cancel)
     }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        needsRecovery = true
-        changed(true)
-        abort(RichMarkdownPolicy.failure("The web editor stopped. Unsaved rich state is retained only through the last acknowledged RAM checkpoint. Restore or explicitly discard it; nothing was written."))
+        guard webView === web else { return }
+        if active {
+            needsRecovery = true
+            changed(true)
+            abort(RichMarkdownPolicy.failure("The web editor stopped. Unsaved rich state is retained only through the last acknowledged RAM checkpoint. Restore or explicitly discard it; nothing was written."))
+        } else {
+            // Source editing and a released/hidden document have no live rich
+            // draft. A background WebKit eviction must not dirty either one or
+            // offer recovery controls for an editor that is not active.
+            invalidate(preservePosition: true)
+        }
         pageReady = false
         loadPage()
     }

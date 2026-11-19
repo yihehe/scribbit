@@ -276,6 +276,16 @@ under `WebEditor/Milkdown/licenses/remark-math-LICENSE` and included in notices.
 
 ## Evidence and remaining gates
 
+Current audit evidence is in [VALIDATION.md](VALIDATION.md) and
+[CODEBASE-AUDIT.md](CODEBASE-AUDIT.md). The native GUI suite and a new real-WebKit
+bridge harness now pass with disposable fixtures. The latter covers modes,
+save/conflict, invalid replies, inactive termination and checkpoint recovery,
+including repeated Restore and timeout/retry. Termination callbacks are simulated;
+physical IME, VoiceOver, cross-app clipboard and OS crash delivery remain separate
+acceptance gates.
+
+### Integration baseline evidence (historical)
+
 | Check | Evidence / result |
 | --- | --- |
 | Actual bundled editor tests | 37 tests; real keyboard transactions, no-edit/Undo, source/edited corpus, task toggle, list Tab/Shift-Tab, code whitespace, tables/empty cells, links/references/orphans, plain multiline paste, composition DOM events, state locks, history, generation clears, first-focus caret settlement and upstream unsafe-link DOM neutralization, empty-placeholder removal and mode replacement/generation isolation |
@@ -291,8 +301,8 @@ Local logs live in ignored `build/milkdown-no-block-handle-js-tests.log`,
 synthetic corpus/characterization JSON files. Initial sandboxed coordination
 failures were rerun with approved host access; coordination was not bypassed.
 
-Remaining release-acceptance gates: actual disposable-note GUI acceptance, broader
-source/property corpus, resource comparison, production image authorization and
-transactions, and final review/rebase/explicit user approval are still required.
+Remaining release-acceptance gates include physical input/accessibility and
+cross-app clipboard acceptance, broader source/property corpus and resource
+comparison. Production images remain a separate authorization/storage feature.
 Normal default enablement is explicitly authorized; it is not evidence that
 these acceptance gates have passed.
