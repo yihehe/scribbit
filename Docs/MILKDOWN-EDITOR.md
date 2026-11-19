@@ -18,7 +18,21 @@ mutation, just like an over-quota edit. Invalid document payloads in a matching
 snapshot response fail immediately instead of waiting for the capture timeout;
 unrelated or stale responses remain ignored.
 
-## Builds and safe developer evaluation
+## Library configuration versus Scribbit customization
+
+| Behavior | Extension point | What Scribbit owns |
+| --- | --- | --- |
+| Floating drag/add widget disabled | Public Milkdown blockConfig.filterNodes | One target filter; upstream BlockEdit/slash commands remain enabled |
+| Rich clipboard | Public ProseMirror clipboardTextSerializer and handlePaste props | Readable plain-text fallback and accepting the upstream-parsed HTML slice under existing guards; upstream still serializes HTML and parses schema content |
+| List-marker cursors | App stylesheet scoped to the live ProseMirror contenteditable attribute | Text cursor for bullet/number markers, pointer for editable tasks, not-allowed while locked |
+
+The cursor rule compensates for pinned Crepe list node views retaining a
+readonly label class after the editor unlocks. Their readonly ref is refreshed
+when node data changes, but not for every editor-editability transition.
+The root contenteditable attribute is current. This visual correction does not
+change document state, hit testing, permissions, selection or task-click handlers.
+No vendor fork, DOM mutation, polling, CSS-only hiding of functional controls,
+or replacement editor is involved.
 
 Rich copy retains ProseMirror's schema-generated HTML and supplies readable
 plain text instead of Markdown markers. Rich paste accepts the upstream-parsed
@@ -29,6 +43,8 @@ are unchanged. The destination app chooses a clipboard representation, so rich
 formatting is not guaranteed in plain-text-only applications. Plain-text fallback
 keeps line breaks but does not synthesize bullets, numbering or checkbox glyphs.
 No native clipboard bridge or arbitrary HTML renderer is added.
+
+## Builds and safe developer evaluation
 
 `Scripts/build-app.sh` produces the normal signed app with rich Markdown enabled.
 Building does not launch, touch real preferences/notes or register login items.

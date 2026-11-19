@@ -22,3 +22,16 @@ body {
 .milkdown .ProseMirror {
   padding: 12px 20px 30px;
 }
+/* Pinned Crepe can leave .readonly on a list marker after its editor unlocks.
+   Derive cursor appearance from ProseMirror's live editable attribute instead.
+   This is presentation only; Milkdown still owns selection and task toggling. */
+.milkdown .ProseMirror[contenteditable="true"] .label-wrapper .label {
+  cursor: text;
+}
+.milkdown .ProseMirror[contenteditable="true"] .label-wrapper .label.checked,
+.milkdown .ProseMirror[contenteditable="true"] .label-wrapper .label.unchecked {
+  cursor: pointer;
+}
+.milkdown .ProseMirror[contenteditable="false"] .label-wrapper .label {
+  cursor: not-allowed;
+}

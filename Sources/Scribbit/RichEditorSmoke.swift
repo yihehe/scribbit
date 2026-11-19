@@ -234,5 +234,43 @@ final class RichEditorSmoke: NSObject, NSApplicationDelegate {
         try require(retried == acknowledged, "Restore timeout/retry lost the checkpoint")
         editor.finish(.retained, source: retried ?? "")
         print("RICH_BRIDGE_RESTORE_RETRY_PASS")
+
+        await editor.prepare(source: "- bullet\n\n3. numbered\n\n- [ ] task\n- [x] done\n", url: fixture)
+        try require(editor.active, "List cursor fixture import failed")
+        func markerCursors() async throws -> [String] {
+            try await js(editor, """
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                const root = document.querySelector(".ProseMirror");
+                return ["bullet", "ordered", "unchecked", "checked"].map(kind => {
+                  const marker = root.querySelector(".label." + kind);
+                  return marker ? getComputedStyle(marker).cursor : "missing";
+                });
+                """) as? [String] ?? []
+        }
+        try require(try await markerCursors() == ["text", "text", "pointer", "pointer"],
+                    "Editable list markers have stale disabled cursors")
+        editor.setReadOnly(true)
+        try require(try await markerCursors() == Array(repeating: "not-allowed", count: 4),
+                    "Locked list markers lost disabled cursors")
+        _ = try await js(editor, """
+            document.querySelector(".label.unchecked").parentElement.dispatchEvent(
+              new MouseEvent("pointerdown", {bubbles: true, cancelable: true}));
+            """)
+        let lockedSource = try await editor.capture()
+        try require(lockedSource?.contains("[ ] task") == true, "Read-only task click changed the document")
+        editor.finish(.retained, source: lockedSource ?? "")
+        editor.setReadOnly(false)
+        try require(try await markerCursors() == ["text", "text", "pointer", "pointer"],
+                    "Unlock did not restore marker cursors")
+        _ = try await js(editor, """
+            document.querySelector(".label.unchecked").parentElement.dispatchEvent(
+              new MouseEvent("pointerdown", {bubbles: true, cancelable: true}));
+            """)
+        let toggledSource = try await editor.capture()
+        try require(toggledSource?.contains("[x] task") == true, "Editable task checkbox no longer toggles")
+        editor.finish(.retained, source: toggledSource ?? "")
+        try require(try await markerCursors() == ["text", "text", "missing", "pointer"],
+                    "Save settlement restored stale cursor styling")
+        print("RICH_LIST_CURSOR_PASS")
     }
 }
