@@ -373,8 +373,16 @@ final class RichMarkdownEditor: NSObject, ObservableObject, WKScriptMessageHandl
             mirror = doc; mirrorRevision = next
         case "snapshot":
             guard let id = body["id"] as? String, id == flushID,
-                  let next = body["revision"] as? Int, next >= revision,
-                  let value = body["document"], let doc = try? RichMarkdownPolicy.validateJSON(value) else { return }
+                  let next = body["revision"] as? Int, next >= revision else { return }
+            let doc: [String: Any]
+            do {
+                doc = try RichMarkdownPolicy.validateJSON(body["document"] ?? NSNull())
+            } catch {
+                // This is a matching response, not an unrelated/stale message.
+                // Fail the waiting request now rather than leaving it to time out.
+                abort(error)
+                return
+            }
             timer?.cancel(); timer = nil
             if flushInspection {
                 mirror = doc; mirrorRevision = next; revision = next

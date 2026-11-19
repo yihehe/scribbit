@@ -186,6 +186,15 @@ const parse = (source) =>
   crepe.editor.action((ctx) => ctx.get(parserCtx)(source));
 function boundedDocumentJSON(document) {
   const doc = document.toJSON();
+  // Match native validation before mutation, including small but deeply nested
+  // documents. Root depth is zero on both sides of the bridge.
+  const pending = [[doc, 0]];
+  while (pending.length) {
+    const [node, depth] = pending.pop();
+    if (depth >= 100)
+      throw new Error("Rich document exceeds its nesting limit.");
+    for (const child of node.content ?? []) pending.push([child, depth + 1]);
+  }
   if (bytes(JSON.stringify(doc)) > maxJSON)
     throw new Error(
       "Milkdown document exceeds its 2 MiB canonical JSON limit; draft retained.",
@@ -397,7 +406,7 @@ function admitTransaction(tr) {
     return true;
   } catch {
     fail(
-      "This edit is too large for rich editing. Switch to Source and paste again. Nothing was inserted.",
+      "This edit exceeds the rich editor's size or nesting limit. Switch to Source and try again. Nothing was inserted.",
     );
     return false;
   }

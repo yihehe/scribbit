@@ -29,6 +29,11 @@ Initial rich admission is
 1 MiB, canonical-document quota is 2 MiB and source persistence uses the existing
 64 MiB core cap. Reject over-quota document transactions before application;
 never strand an admitted draft by applying the admission threshold to exports.
+Keep the native and JavaScript nesting bound aligned: root depth zero, every
+node below depth 100. Reject deeper transactions before mutation and fail invalid
+matching snapshot replies immediately. Rich history shortcuts require actual
+focus in the key note window, not just active rich mode; auxiliary fields retain
+native history routing.
 Keep the floating block grip/add widget disabled through the public blockConfig
 filter after Crepe's defaults. Do not disable the entire BlockEdit feature: slash
 commands must remain available. Pinned 7.23.0 does not consume its declared

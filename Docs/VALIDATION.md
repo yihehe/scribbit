@@ -1,5 +1,45 @@
 # Validation record
 
+## Review fixes — November 18, 2026
+
+| Check | Result / scope |
+| --- | --- |
+| History routing | Rich Undo/Redo and menu validation now require the key note window, rich responder ancestry, and no active auxiliary UI; native fields use the key window responder |
+| Focus regression | Public NSView ancestry test covers editor, descendant, sibling text field, ancestor, nil and non-view responders; no physical sheet keyboard automation |
+| Depth admission | JavaScript and native tests agree on depth 99 accepted/depth 100 rejected; a rejected transaction leaves the original draft saveable |
+| Invalid snapshot | Matching document-validation failures now abort the pending request immediately rather than silently timing out |
+| Bundled editor | 38 tests passed against regenerated resources |
+| Swift/native/core/filesystem | 161 tests in 26 suites passed with host file coordination |
+
+Ignored test evidence: build/review-fixes-web-tests.log and
+build/review-fixes-swift-tests.log. These tests do not establish physical
+WebKit/IME, sheet keyboard delivery or accessibility acceptance.
+
+## Commit readiness recheck — November 18, 2026
+
+The temporary rich-clipboard prototype was fully reverted. Normal rich copy and
+paste retain the existing Milkdown/plain-text behavior; it is not part of this
+change. The three existing local implementation commits were left intact.
+
+| Check | Result / scope |
+| --- | --- |
+| Remote base | Fetched origin; main remains cb340bd, with zero main-only commits and three local feature commits |
+| Bundled editor | 37 tests passed after regeneration; generated resources and manifest are byte-identical to the committed versions |
+| Swift/native/core/filesystem | 159 tests in 25 suites passed with host access for disposable coordinated filesystem fixtures |
+| Sandbox attempt | Initial filesystem tests failed under restricted coordination; rerun used the unchanged storage implementation, not a coordination bypass |
+| Helpers | Three system-Bash runner scenarios and 19 offline publisher/workflow tests passed |
+| Fresh normal build | build/milkdown-commit-prep/Scribbit.app built and passed deep strict signature verification |
+| Static checks | Shell syntax, plist lint and feature-diff whitespace checks passed |
+| Documentation | README now distinguishes rich list shortcuts, native source indentation/find and the existing Markdown clipboard representation |
+| GUI acceptance | Earlier user-requested relaunches verified the intended executable path; this recheck did not inspect user notes or automate the UI |
+| Remaining gates | Physical WebKit/IME, VoiceOver, crash injection, cross-app clipboard and whole-app resource acceptance remain unverified; hosted CI has not run on the unpushed branch |
+| Repository actions | No new commit, history rewrite, push or PR creation performed during this recheck |
+
+Ignored evidence: build/commit-prep-web-tests.log,
+build/commit-prep-swift-tests.log, build/commit-prep-swift-tests-host.log and
+build/commit-prep-build.log. Source-mode behavior and Markdown persistence were
+not changed during this readiness pass.
+
 ## Hide the floating block drag/add widget — November 18, 2026
 
 The floating widget beside blocks is disabled without disabling slash commands.

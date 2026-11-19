@@ -87,8 +87,9 @@ target, not the symlink itself. Create does not truncate an existing file.
 | Normal Quit / system termination request | Attempts save; refuses termination if saving fails |
 | System sleep notification | Best-effort save; OS may suspend before it completes |
 | Cmd-S | Saves without hiding |
-| Tab / Shift-Tab | Tab inserts a literal tab. Shift-Tab removes one leading tab or up to four leading spaces from current/selected lines, with atomic undo/redo |
-| Cmd-F, Cmd-Z, Cmd-Shift-Z, clipboard shortcuts | Editor find, undo, redo, cut/copy/paste |
+| Tab / Shift-Tab | Rich mode uses Milkdown's contextual list indentation/outdenting. Source mode inserts a literal tab or removes one leading tab/up to four leading spaces from current/selected lines, with native undo/redo |
+| Cmd-Z, Cmd-Shift-Z, clipboard shortcuts | Undo, redo, cut/copy/paste in the active editor; rich clipboard behavior follows Milkdown, including a Markdown plain-text representation |
+| Cmd-F in Source mode | Native editor find |
 | Expanded-section gear / Cmd-, | Open a transient settings popup. Cmd-, also works collapsed, anchored to the visible chevron, and with no file open |
 | Expanded section → Pin note open | Keep the working surface open across pointer exit/outside click/app switching |
 | Bottom chevron | Expand/collapse file information/full path, pin/editor mode, and settings gear; collapsed on each open |

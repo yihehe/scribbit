@@ -707,24 +707,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
     private var editableResponder: NSTextView? {
-        guard !model.isBusy, !model.resetInProgress, let editor = panel?.firstResponder as? NSTextView,
+        guard !model.isBusy, !model.resetInProgress, let editor = NSApp.keyWindow?.firstResponder as? NSTextView,
               editor.isEditable else { return nil }
         return editor
     }
+    private var richHistoryTarget: RichMarkdownEditor? {
+        guard let richEditor, richEditor.active, !model.isBusy, !model.resetInProgress,
+              !presentingDialog, !settingsPresented, panel.attachedSheet == nil,
+              NSApp.keyWindow === panel, let web = richEditor.web,
+              EditorHistoryRouting.ownsFocus(editor: web, responder: panel.firstResponder) else { return nil }
+        return richEditor
+    }
     @objc private func undoAction() {
-        if let richEditor, richEditor.active, !model.isBusy, !model.resetInProgress { richEditor.undo(); return }
+        if let richEditor = richHistoryTarget { richEditor.undo(); return }
         guard let editor = editableResponder else { return }
         editor.breakUndoCoalescing()
         editor.undoManager?.undo()
     }
     @objc private func redoAction() {
-        if let richEditor, richEditor.active, !model.isBusy, !model.resetInProgress { richEditor.redo(); return }
+        if let richEditor = richHistoryTarget { richEditor.redo(); return }
         guard let editor = editableResponder else { return }
         editor.breakUndoCoalescing()
         editor.undoManager?.redo()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if let richEditor, richEditor.active {
+        if let richEditor = richHistoryTarget {
             if menuItem.action == #selector(undoAction) { return !model.isBusy && !model.resetInProgress && richEditor.canUndo }
             if menuItem.action == #selector(redoAction) { return !model.isBusy && !model.resetInProgress && richEditor.canRedo }
         }

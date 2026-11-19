@@ -954,6 +954,28 @@ test("mode replacement imports latest unsaved source and rejects a departed gene
   }
 });
 
+test("nesting boundary rejects deep edits before mutation and preserves a saveable draft", async () => {
+  const f = await setup("original\n");
+  try {
+    const v = f.api.view(), schema = v.state.schema;
+    function nested(wrappers) {
+      let node = schema.nodes.paragraph.create(null, schema.text("deep"));
+      for (let i = 0; i < wrappers; i++)
+        node = schema.nodes.blockquote.create(null, node);
+      return schema.topNodeType.create(null, node);
+    }
+    assert.doesNotThrow(() => f.api.boundedDocumentJSON(nested(97)));
+    assert.throws(() => f.api.boundedDocumentJSON(nested(98)), /nesting limit/);
+    const before = v.state.doc;
+    v.dispatch(v.state.tr.replaceWith(0, before.content.size, nested(98).content));
+    assert.ok(v.state.doc.eq(before));
+    assert.match(f.messages.findLast((m) => m.type === "error").message, /nesting limit/);
+    assert.equal(flush(f).type, "snapshot");
+  } finally {
+    f.close();
+  }
+});
+
 test("oversized rich paste is rejected before mutation and the existing draft stays saveable", async () => {
   const f = await setup("Original\n");
   try {

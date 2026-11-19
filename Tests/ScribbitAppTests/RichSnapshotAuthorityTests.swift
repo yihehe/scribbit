@@ -3,6 +3,16 @@ import Testing
 @testable import Scribbit
 
 struct RichSnapshotAuthorityTests {
+    @Test func nestingBoundaryMatchesJavaScriptAdmission() throws {
+        func nested(_ wrappers: Int) -> [String: Any] {
+            var node: [String: Any] = ["type": "paragraph", "content": [["type": "text", "text": "deep"]]]
+            for _ in 0..<wrappers { node = ["type": "blockquote", "content": [node]] }
+            return ["type": "doc", "content": [node]]
+        }
+        // doc=0, 97 blockquotes, paragraph=98, text=99.
+        _ = try RichMarkdownPolicy.validateJSON(nested(97))
+        #expect(throws: (any Error).self) { try RichMarkdownPolicy.validateJSON(nested(98)) }
+    }
     private func document(_ text: String?) -> [String: Any] {
         var paragraph: [String: Any] = ["type": "paragraph"]
         if let text { paragraph["content"] = [["type": "text", "text": text]] }

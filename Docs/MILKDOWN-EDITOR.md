@@ -7,6 +7,17 @@ Production bundle ID, persistent bookmarks/preferences and Launch at Login
 semantics are unchanged. Unsupported source, .txt and larger initial files stay
 editable in the native Source editor. No automatic migration occurs.
 
+Undo/Redo targets rich history only while the rich editor owns focus in the key
+note window, with no sheet/settings popup active. Native auxiliary text fields
+use the key window's editable responder instead. Public view ancestry handles
+WebKit descendant responders without inspecting private classes.
+
+JavaScript transaction admission and native capture both require node depth
+below 100, counting the document root as zero. A deeper edit is rejected before
+mutation, just like an over-quota edit. Invalid document payloads in a matching
+snapshot response fail immediately instead of waiting for the capture timeout;
+unrelated or stale responses remain ignored.
+
 ## Builds and safe developer evaluation
 
 `Scripts/build-app.sh` produces the normal signed app with rich Markdown enabled.
