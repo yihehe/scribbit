@@ -4,6 +4,7 @@ import {
   editorViewOptionsCtx,
   parserCtx,
   remarkCtx,
+  remarkStringifyOptionsCtx,
   serializerCtx,
 } from "@milkdown/kit/core";
 import { Fragment, Slice } from "@milkdown/kit/prose/model";
@@ -612,6 +613,17 @@ async function boot() {
     },
   });
   crepe.editor.config((ctx) => {
+    // Pinned Milkdown's text fast path emits trailing/all-space text verbatim,
+    // which Markdown can trim or reinterpret as an empty item/hard break.
+    // Let the existing Markdown safety encoder preserve those boundary spaces
+    // with character references. Code/inline-code use their own handlers.
+    ctx.update(remarkStringifyOptionsCtx, (options) => ({
+      ...options,
+      handlers: {
+        ...options.handlers,
+        text: (node, _parent, state, info) => state.safe(node.value, info),
+      },
+    }));
     // Crepe's BlockEdit also supplies slash commands, so keep that feature.
     // Override its earlier default target filter through the public block API;
     // no eligible block means the floating grip/add handle never activates.

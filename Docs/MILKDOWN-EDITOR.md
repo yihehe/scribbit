@@ -20,6 +20,14 @@ unrelated or stale responses remain ignored.
 
 ## Library configuration versus Scribbit customization
 
+The public remarkStringifyOptionsCtx also overrides only the text handler:
+state.safe encodes vulnerable boundary spaces rather than using pinned
+Milkdown's literal-whitespace shortcut. A trailing space or space-only list item
+may appear as `&#x20;` in Source and decodes to the same ASCII space on reopen.
+Code and inline-code handlers are untouched. The structural roundtrip guard
+remains strict, including a separately known whitespace-loss case before a soft
+linebreak; this is not permission to trim rich text or normalize missing spaces.
+
 | Behavior | Extension point | What Scribbit owns |
 | --- | --- | --- |
 | Floating drag/add widget disabled | Public Milkdown blockConfig.filterNodes | One target filter; upstream BlockEdit/slash commands remain enabled |

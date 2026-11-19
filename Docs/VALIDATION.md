@@ -1,5 +1,41 @@
 # Validation record
 
+## List boundary whitespace export — November 18, 2026
+
+Reproduced single trailing-space and space-only empty-item save refusal using
+synthetic list edits. Pinned Milkdown's Markdown text handler bypasses the safety
+encoder for some whitespace-bearing text, so Markdown/reparse drops characters.
+The public remarkStringifyOptionsCtx now replaces only that text handler with
+state.safe; vulnerable spaces use character references. No draft trimming,
+structural comparison relaxation, code-handler replacement or vendor edits.
+
+The subsequent [parity review](MARKDOWN-PARITY-REVIEW.md) compared 72 synthetic
+edits before/after: 38 to 50 successful snapshots, with no previously successful
+case newly refused. It also identified pre-existing refusals at mark/link and
+table-cell boundaries, not only the soft-linebreak case below. The broader parity
+test improvements remain proposed follow-up work, not part of this fix.
+
+| Check | Result / scope |
+| --- | --- |
+| Bundled JavaScript | 43 tests passed, including 36 edit/export/reopen cases across bullet, non-1 ordered, task and nested lists; leading/trailing/space-only items with 1, 2 and 4 spaces |
+| Other semantics | Existing internal-space, code/inline-code and Undo authority checks pass; all order/checked/text/structure loss guards remain strict |
+| Known separate limit | Whitespace before an intra-paragraph soft linebreak can still fail strict roundtrip; the existing negative test remains passing |
+| Swift/core/resources | 166 tests in 27 suites passed with host file coordination |
+| Offline helpers | 26 tests passed, including required whitespace GUI marker |
+| Real WebKit | Full rich GUI gate passed, including edit/export/reopen of a space-only item and exact text-content comparison |
+| Build | Fresh build/list-space/Scribbit.app; strict signature and whitespace checks passed |
+| Scope | Markdown remains authoritative, unchanged-tree bytes still bypass serialization, boundary spaces may show as numeric character references in Source |
+
+An initial real-WebKit fixture used a bare empty list marker that the existing
+source-admission semantics rejects; the final fixture uses a supported encoded
+space and verifies an additional space survives export/reopen. The headless
+36-case corpus separately creates new empty items through actual Enter commands.
+Neither test inspects user notes. No normal app restart, commit or push performed.
+
+Ignored evidence: build/list-space-repro.mjs, build/list-space-web-tests.log,
+build/list-space-swift-tests.log, build/list-space-ci-tests.log,
+build/list-space-build.log and build/list-space-smoke/run.log.
+
 ## List-marker cursor state — November 18, 2026
 
 Pinned Crepe list node views may retain a readonly label class after loading
